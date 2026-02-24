@@ -430,7 +430,7 @@ function spawnGreenKnight() {
   else if(edge===2) { col=0; row=Math.floor(Math.random()*ROWS); }
   else              { col=COLS-1; row=Math.floor(Math.random()*ROWS); }
   greenKnight = { col, row, frame:0, frameTimer:0, moveTimer:3, dir:0 }; // dir: 0=down,1=left,2=right,3=up
-  knightAnnounce = 90; // show banner for ~1.5 seconds (60fps)
+  knightAnnounce = 20; // ~3 seconds at 155ms/tick
   // Fanfare: short procedural ta-da
   playKnightFanfare();
 }
@@ -655,7 +655,7 @@ function draw() {
   if(knightAnnounce > 0) {
     // fade in over first 10 frames, fade out over last 20 frames
     const fadeIn  = Math.min(1, (90 - knightAnnounce) / 10);
-    const fadeOut = Math.min(1, knightAnnounce / 20);
+    const fadeOut = Math.min(1, knightAnnounce / 10);
     ctx.save();
     ctx.globalAlpha = Math.min(fadeIn, fadeOut);
     ctx.fillStyle = "rgba(10,40,10,0.82)";
