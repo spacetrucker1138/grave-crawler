@@ -45,6 +45,7 @@
       position:fixed; inset:0; background:#000000dd;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
       z-index:10; color:#c8a84b;
+      font-family:'Courier New',monospace;
     }
     #overlay h1 {
       font-size:52px; letter-spacing:10px; text-shadow:0 0 30px #c8a84b, 0 0 60px #c8a84b44;
@@ -97,9 +98,9 @@ document.getElementById("gc").height = H;
 const BASE_INTERVAL = 155;
 
 const SPELLS = [
-  { name:"BONE BURST",    cost:3, emoji:"💥" },
-  { name:"SLIME TRAIL",   cost:2, emoji:"🟢" },
-  { name:"DEATH SHROUD",  cost:4, emoji:"🌑" },
+  { name:"BONE BURST",    cost:3, emoji:"💥" },  // 3 segments → blasts 4 cells ahead, 5pts each (max 20pts)
+  { name:"SLIME TRAIL",   cost:2, emoji:"🟢" },  // 2 segments → slime trail ~3s
+  { name:"DEATH SHROUD",  cost:3, emoji:"🌑" },  // 3 segments (was 4) → 10-tick phase-through
 ];
 
 // ── CANVAS ───────────────────────────────────────────────────────────────
@@ -284,17 +285,17 @@ async function submitScore(initials, pts) {
 }
 
 function renderLeaderboard(rows) {
-  if(!rows || rows.length === 0) return '<div style="color:#556;font-size:11px;letter-spacing:2px;">NO SCORES YET — BE THE FIRST</div>';
-  return '<table style="border-collapse:collapse;width:100%;font-size:12px;letter-spacing:1px;">'
-    + '<tr><th style="color:#556;padding:2px 8px;text-align:left;">RANK</th>'
-    + '<th style="color:#556;padding:2px 8px;text-align:left;">NAME</th>'
-    + '<th style="color:#556;padding:2px 8px;text-align:right;">SCORE</th></tr>'
+  if(!rows || rows.length === 0) return '<div style="color:#444;font-size:11px;letter-spacing:2px;font-family:'Courier New',monospace;">NO SCORES YET — BE THE FIRST</div>';
+  return '<table style="border-collapse:collapse;width:100%;font-size:12px;letter-spacing:1px;font-family:'Courier New',monospace;">'
+    + '<tr><th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">RANK</th>'
+    + '<th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">NAME</th>'
+    + '<th style="color:#444;padding:2px 8px;text-align:right;font-weight:normal;letter-spacing:2px;">SCORE</th></tr>'
     + rows.map((r,i) => {
         const isTop = i === 0;
-        const col = isTop ? "#ffd700" : (i < 3 ? "#c8a84b" : "#888");
+        const col = isTop ? "#ffd700" : (i < 3 ? "#c8a84b" : "#777");
         return `<tr>
-          <td style="color:${col};padding:2px 8px;">#${i+1}</td>
-          <td style="color:${col};padding:2px 8px;">${r.initials||"????"}</td>
+          <td style="color:${col};padding:3px 8px;">#${i+1}</td>
+          <td style="color:${col};padding:3px 8px;">${r.initials||"????"}</td>
           <td style="color:${col};padding:2px 8px;text-align:right;">💀 ${r.score}</td>
         </tr>`;
       }).join("")
@@ -487,14 +488,15 @@ function tick() {
   for(let i=0; i<villagers.length; i++) {
     const v = villagers[i];
     if(v.col===newHead.col && v.row===newHead.row) {
-      score += 10; ate = true;
+      const tailBonus = Math.floor(snake.length / 2);
+      score += 10 + tailBonus; ate = true;
       applesSinceKnight++;
       // Spawn Green Knight after 5-10 apples, if not already present
       if(!greenKnight && applesSinceKnight >= 12 + Math.floor(Math.random()*7)) {
         spawnGreenKnight();
         applesSinceKnight = 0;
       }
-      spellFx.push({type:"eat", col:v.col, row:v.row, life:10, pts:10});
+      spellFx.push({type:"eat", col:v.col, row:v.row, life:10, pts:10 + tailBonus});
       playSound('villagedeath', { volume: 0.6 });
       // Blood splat at eat location — fades over 3s (~19 ticks at 155ms)
       spellFx.push({type:"blood", col:v.col, row:v.row, life:19, maxLife:19,
@@ -548,7 +550,7 @@ function castSpell(idx) {
   for(let i=0;i<sp.cost;i++) snake.pop();
 
   if(idx===0) {
-    for(let i=1;i<=3;i++) {
+    for(let i=1;i<=4;i++) {
       const bc=snake[0].col+dir.col*i, br=snake[0].row+dir.row*i;
       spellFx.push({type:"burst",col:bc,row:br,life:14});
       for(let vi=0;vi<villagers.length;vi++) {
@@ -809,29 +811,63 @@ function endGame(reason) {
 async function showInitialsEntry(reason, isNew) {
   const finalScore = pendingScore;
   const ov = document.getElementById("overlay");
+  // Solid dark background — no jumping background art
+  ov.style.background = "radial-gradient(ellipse at center, #0d0d12 0%, #050508 100%)";
   ov.innerHTML = `
-    <div id="game-over-msg">THE CRAWLER FALLS</div>
-    <div id="death-flavor">${reason}</div>
-    <div id="score-big">💀 ${finalScore}</div>
-    ${isNew ? '<div style="color:#ffd700;font-size:14px;letter-spacing:3px;margin-bottom:8px;">✦ NEW HIGH SCORE ✦</div>' : ''}
-    <div style="color:#888;font-size:13px;margin-bottom:14px;">BEST: ${highScore}</div>
-    <div style="margin-bottom:18px;">
-      <div style="font-size:11px;letter-spacing:3px;color:#aaa;margin-bottom:8px;">ENTER YOUR INITIALS</div>
-      <input id="initials-input" maxlength="3" placeholder="AAA"
-        style="background:#0a0a0a;border:2px solid #c8a84b;color:#c8a84b;
-               font-family:'Courier New',monospace;font-size:28px;letter-spacing:10px;
-               text-align:center;width:120px;padding:6px;text-transform:uppercase;
-               outline:none;" />
-    </div>
-    <div id="lb-submitting" style="font-size:11px;color:#556;letter-spacing:2px;min-height:16px;margin-bottom:8px;"></div>
-    <div style="display:flex;gap:16px;justify-content:center;margin-bottom:20px;">
-      <button id="submit-score-btn">CARVE YOUR NAME</button>
-      <button id="skip-score-btn" style="background:#1a1a2e;border:2px solid #556;font-size:11px;">SKIP</button>
-    </div>
-    <div id="lb-container" style="min-height:80px;"></div>
-    <div style="display:flex;gap:16px;justify-content:center;margin-top:18px;">
-      <button id="replay-btn">RISE AGAIN</button>
-      <button id="title-btn" style="background:#1a1a2e;border:2px solid #556;">◀ TITLE</button>
+    <div style="
+      background:rgba(0,0,0,0.82);
+      border:1px solid #2a2a1a;
+      border-radius:8px;
+      padding:28px 36px;
+      max-width:440px;
+      width:90%;
+      text-align:center;
+      box-shadow:0 0 60px #000, inset 0 0 30px rgba(200,168,75,0.04);
+      font-family:'Courier New',monospace;
+    ">
+      <div style="font-size:28px;color:#cc3333;letter-spacing:6px;text-shadow:0 0 20px #cc3333aa;margin-bottom:6px;font-weight:900;">THE CRAWLER FALLS</div>
+      <div style="font-size:11px;color:#664444;letter-spacing:3px;margin-bottom:18px;text-transform:uppercase;">${reason}</div>
+      <div style="font-size:48px;color:#c8a84b;text-shadow:0 0 20px #c8a84b88;margin-bottom:4px;">💀 ${finalScore}</div>
+      ${isNew ? '<div style="color:#ffd700;font-size:13px;letter-spacing:4px;margin-bottom:4px;text-shadow:0 0 12px #ffd700;">✦ NEW HIGH SCORE ✦</div>' : ''}
+      <div style="color:#555;font-size:11px;letter-spacing:2px;margin-bottom:20px;">BEST: ${highScore}</div>
+      <div style="border-top:1px solid #1a1a1a;margin-bottom:18px;padding-top:16px;">
+        <div style="font-size:10px;letter-spacing:3px;color:#666;margin-bottom:10px;">CARVE YOUR NAME INTO THE BONES</div>
+        <input id="initials-input" maxlength="3" placeholder="AAA"
+          style="background:#0a0a0a;border:2px solid #c8a84b;color:#c8a84b;
+                 font-family:'Courier New',monospace;font-size:30px;letter-spacing:12px;
+                 text-align:center;width:130px;padding:8px;text-transform:uppercase;
+                 outline:none;border-radius:4px;" />
+      </div>
+      <div id="lb-submitting" style="font-size:10px;color:#c8a84b88;letter-spacing:2px;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:12px;justify-content:center;margin-bottom:22px;">
+        <button id="submit-score-btn" style="
+          padding:10px 24px;font-size:13px;letter-spacing:3px;
+          background:transparent;border:2px solid #c8a84b;color:#c8a84b;
+          font-family:'Courier New',monospace;cursor:pointer;
+          transition:all .2s;text-transform:uppercase;border-radius:4px;
+        " onmouseover="this.style.background='#c8a84b22'" onmouseout="this.style.background='transparent'">INSCRIBE</button>
+        <button id="skip-score-btn" style="
+          padding:10px 18px;font-size:11px;letter-spacing:2px;
+          background:transparent;border:2px solid #333;color:#555;
+          font-family:'Courier New',monospace;cursor:pointer;
+          transition:all .2s;text-transform:uppercase;border-radius:4px;
+        " onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">SKIP</button>
+      </div>
+      <div id="lb-container" style="min-height:80px;"></div>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;border-top:1px solid #1a1a1a;padding-top:18px;">
+        <button id="replay-btn" style="
+          padding:12px 32px;font-size:15px;letter-spacing:4px;
+          background:transparent;border:2px solid #c8a84b;color:#c8a84b;
+          font-family:'Courier New',monospace;cursor:pointer;
+          transition:all .2s;text-transform:uppercase;border-radius:4px;
+        " onmouseover="this.style.background='#c8a84b22'" onmouseout="this.style.background='transparent'">RISE AGAIN</button>
+        <button id="title-btn" style="
+          padding:12px 22px;font-size:13px;letter-spacing:3px;
+          background:transparent;border:2px solid #333;color:#666;
+          font-family:'Courier New',monospace;cursor:pointer;
+          transition:all .2s;text-transform:uppercase;border-radius:4px;
+        " onmouseover="this.style.color='#aaa';this.style.borderColor='#666'" onmouseout="this.style.color='#666';this.style.borderColor='#333'">◀ TITLE</button>
+      </div>
     </div>
   `;
   ov.classList.remove("overlay-hidden");
@@ -928,6 +964,7 @@ async function showTitleScreen() {
     </div>
   `;
   ov.style.padding = "0";
+  ov.style.background = ""; // reset from game-over gradient
   ov.classList.remove("overlay-hidden");
   stopBgMusic(); // music restarts on CRAWL FORTH click
   document.getElementById("start-btn").addEventListener("click", () => {
