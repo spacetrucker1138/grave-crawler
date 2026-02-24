@@ -252,29 +252,29 @@ function tickVillagers() {
     const k = greenKnight;
     k.frameTimer++;
     if(k.frameTimer >= 3) { k.frame = (k.frame+1)%4; k.frameTimer=0; }
-    if(--k.moveTimer <= 0) {
-      k.moveTimer = 3; // knight moves faster than villagers
-      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-      const valid = dirs.filter(d => {
-        const nc = k.col+d[0], nr = k.row+d[1];
-        return nc>=0&&nc<COLS&&nr>=0&&nr<ROWS&&!snakeSet.has(`${nc},${nr}`)&&!propSet.has(`${nc},${nr}`);
-      });
-      if(valid.length) {
-        // Knight wanders — slight bias away from snake for dramatic effect
-        valid.sort((a,b)=>{
-          const da=(k.col+a[0]-head.col)**2+(k.row+a[1]-head.row)**2;
-          const db=(k.col+b[0]-head.col)**2+(k.row+b[1]-head.row)**2;
-          return db-da;
+    // Check if snake head landed on knight (every tick, not just move ticks)
+    if(k.col===snake[0].col && k.row===snake[0].row) {
+      score += 50;
+      spellFx.push({type:"eat", col:k.col, row:k.row, life:10});
+      greenKnight = null;
+      updateHUD();
+    } else {
+      if(--k.moveTimer <= 0) {
+        k.moveTimer = 3;
+        const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        const valid = dirs.filter(d => {
+          const nc = k.col+d[0], nr = k.row+d[1];
+          return nc>=0&&nc<COLS&&nr>=0&&nr<ROWS&&!snakeSet.has(`${nc},${nr}`);
         });
-        const d = Math.random()<0.5 ? valid[0] : valid[Math.floor(Math.random()*valid.length)];
-        k.col += d[0]; k.row += d[1];
-      }
-      // Knight eaten by snake?
-      if(k.col===newHead.col && k.row===newHead.row) {
-        score += 50;
-        spellFx.push({type:"eat", col:k.col, row:k.row, life:10});
-        greenKnight = null;
-        updateHUD();
+        if(valid.length) {
+          valid.sort((a,b)=>{
+            const da=(k.col+a[0]-head.col)**2+(k.row+a[1]-head.row)**2;
+            const db=(k.col+b[0]-head.col)**2+(k.row+b[1]-head.row)**2;
+            return db-da;
+          });
+          const d = Math.random()<0.5 ? valid[0] : valid[Math.floor(Math.random()*valid.length)];
+          k.col += d[0]; k.row += d[1];
+        }
       }
     }
     if(knightAnnounce > 0) knightAnnounce--;
@@ -345,10 +345,7 @@ function tick() {
   if(shroudTimer<=0 && bodySet.has(`${newHead.col},${newHead.row}`))
     return endGame("CONSUMED BY YOUR OWN HUNGER");
 
-  // Props (solid obstacles)
-  const propSet = new Set(propList.list.map(p=>`${p.col},${p.row}`));
-  if(propSet.has(`${newHead.col},${newHead.row}`))
-    return endGame("IMPALED ON STONE");
+  // Props: visual only, no collision
 
   snake.unshift(newHead);
 
