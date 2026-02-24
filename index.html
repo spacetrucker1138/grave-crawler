@@ -149,7 +149,7 @@ function drawVillagerSprite(frame, x, y) {
   ctx.drawImage(
     IMG.villager,
     frame * 64, 0, 64, 64,
-    x, y, CELL, CELL
+    x, y - Math.round(CELL * 0.4), CELL, Math.round(CELL * 1.4)
   );
 }
 
@@ -439,7 +439,7 @@ function drawSnake() {
       } else if(i===len-1) {
         // Tail: point away from body; +π/2 offset mirrors head's -π/2 (opposite correction)
         const prev = snake[i-1];
-        const angle = Math.atan2(seg.row-prev.row, seg.col-prev.col) + Math.PI/2;
+        const angle = Math.atan2(seg.row-prev.row, seg.col-prev.col) + Math.PI/2 + Math.PI;
         drawSnakeSprite("tail", x, y, angle);
       } else {
         // Body: detect corner vs straight
