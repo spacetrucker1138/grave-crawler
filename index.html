@@ -437,9 +437,9 @@ function drawSnake() {
         const angle = Math.atan2(dir.row, dir.col) - Math.PI/2;
         drawSnakeSprite("head", x, y, angle);
       } else if(i===len-1) {
-        // Tail: rotate to face prev segment
+        // Tail: point away from body; +π/2 offset mirrors head's -π/2 (opposite correction)
         const prev = snake[i-1];
-        const angle = Math.atan2(seg.row-prev.row, seg.col-prev.col) + Math.PI;
+        const angle = Math.atan2(seg.row-prev.row, seg.col-prev.col) + Math.PI/2;
         drawSnakeSprite("tail", x, y, angle);
       } else {
         // Body: detect corner vs straight
