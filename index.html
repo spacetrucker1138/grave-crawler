@@ -804,6 +804,8 @@ const KEYS = {
   W:{col:0,row:-1}, S:{col:0,row:1}, A:{col:-1,row:0}, D:{col:1,row:0},
 };
 document.addEventListener("keydown", e => {
+  // Don't steal keys while user is typing in the initials box
+  if(document.activeElement && document.activeElement.id === "initials-input") return;
   if(KEYS[e.key]) {
     e.preventDefault();
     const nd=KEYS[e.key];
