@@ -9,29 +9,26 @@
     body {
       background:#0a0a0a;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
-      height:100vh; overflow:hidden;
+      min-height:100vh; overflow:hidden;
       font-family:'Courier New', monospace;
     }
-    #wrapper {
-      display:flex; flex-direction:column; align-items:center; gap:8px;
-    }
+    #wrapper { display:flex; flex-direction:column; align-items:center; gap:8px; }
     #hud {
-      display:flex; gap:24px; align-items:center;
+      display:flex; gap:20px; align-items:center;
       color:#c8a84b; font-size:14px; letter-spacing:2px;
-      text-shadow:0 0 8px #c8a84b88;
+      text-shadow:0 0 8px #c8a84b88; padding:4px 0;
     }
-    #hud span { display:flex; align-items:center; gap:6px; }
-    #spell-bar {
-      display:flex; gap:10px; align-items:center;
-    }
+    #spell-bar { display:flex; gap:8px; align-items:center; }
     .spell-slot {
-      width:36px; height:36px; border:2px solid #444;
-      border-radius:4px; display:flex; align-items:center;
-      justify-content:center; font-size:18px; cursor:pointer;
-      background:#111; position:relative; transition:border-color .15s;
+      width:38px; height:38px; border:2px solid #444;
+      border-radius:4px; display:flex; align-items:center; justify-content:center;
+      font-size:18px; cursor:pointer; background:#111; position:relative;
+      transition:border-color .15s, background .15s;
+      user-select:none;
     }
-    .spell-slot.ready  { border-color:#c8a84b; box-shadow:0 0 8px #c8a84b66; }
-    .spell-slot.active { border-color:#fff; background:#222; }
+    .spell-slot.ready  { border-color:#c8a84b; box-shadow:0 0 10px #c8a84b44; }
+    .spell-slot.active { border-color:#fff; background:#1a1a2a; }
+    .spell-slot.not-ready { opacity:0.4; }
     .spell-label {
       position:absolute; bottom:-18px; left:50%; transform:translateX(-50%);
       font-size:9px; color:#888; white-space:nowrap; letter-spacing:1px;
@@ -40,30 +37,31 @@
       display:block;
       image-rendering:pixelated; image-rendering:crisp-edges;
       border:2px solid #2a1a0a;
-      box-shadow:0 0 40px #000, inset 0 0 60px #00000088;
+      box-shadow:0 0 60px #000000cc, 0 0 20px #1a0a0088;
     }
+    #effect-hud { color:#aaa; font-size:12px; min-width:140px; text-align:center; }
     #overlay {
-      position:fixed; inset:0; background:#000000cc;
+      position:fixed; inset:0; background:#000000dd;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
       z-index:10; color:#c8a84b;
     }
     #overlay h1 {
-      font-size:48px; letter-spacing:8px; text-shadow:0 0 20px #c8a84b;
-      margin-bottom:12px; font-weight:900;
+      font-size:52px; letter-spacing:10px; text-shadow:0 0 30px #c8a84b, 0 0 60px #c8a84b44;
+      margin-bottom:8px; font-weight:900;
     }
-    #overlay h2 { font-size:20px; color:#888; letter-spacing:4px; margin-bottom:40px; }
-    #overlay p  { color:#aaa; font-size:13px; letter-spacing:1px; margin:4px 0; }
-    #overlay .spell-hint { color:#c8a84b88; font-size:11px; margin-top:8px; }
+    #overlay h2 { font-size:18px; color:#777; letter-spacing:4px; margin-bottom:36px; }
+    #overlay p  { color:#999; font-size:13px; letter-spacing:1px; margin:3px 0; }
+    .spell-hint { color:#c8a84b66; font-size:11px; margin-top:10px; }
     #start-btn {
-      margin-top:32px; padding:14px 48px; background:transparent;
+      margin-top:36px; padding:14px 56px; background:transparent;
       border:2px solid #c8a84b; color:#c8a84b; font-size:18px;
-      letter-spacing:4px; cursor:pointer; font-family:inherit;
+      letter-spacing:6px; cursor:pointer; font-family:inherit;
       text-transform:uppercase; transition:all .2s;
     }
-    #start-btn:hover { background:#c8a84b22; box-shadow:0 0 20px #c8a84b66; }
-    #score-big { font-size:36px; margin:8px 0; }
-    #game-over-msg { font-size:28px; color:#cc3333; letter-spacing:6px; text-shadow:0 0 20px #cc3333; }
-    #death-flavor { font-size:13px; color:#777; margin:8px 0 24px; }
+    #start-btn:hover { background:#c8a84b22; box-shadow:0 0 24px #c8a84b88; }
+    #score-big { font-size:42px; margin:10px 0; }
+    #game-over-msg { font-size:30px; color:#cc3333; letter-spacing:6px; text-shadow:0 0 24px #cc3333; }
+    #death-flavor { font-size:13px; color:#666; margin:6px 0 20px; letter-spacing:2px; }
     .overlay-hidden { display:none !important; }
   </style>
 </head>
@@ -71,212 +69,230 @@
 <div id="wrapper">
   <div id="hud">
     <span>💀 <span id="score-hud">0</span></span>
-    <span>📏 <span id="length-hud">1</span></span>
+    <span>📏 <span id="length-hud">3</span></span>
     <span id="spell-bar">
-      <span class="spell-slot" id="slot-0" title="[1] Bone Burst - costs 3 segments">💥<span class="spell-label">BURST [1]</span></span>
-      <span class="spell-slot" id="slot-1" title="[2] Spectral Rush - costs 2 segments">⚡<span class="spell-label">RUSH [2]</span></span>
-      <span class="spell-slot" id="slot-2" title="[3] Death Shroud - costs 4 segments">🌑<span class="spell-label">SHROUD [3]</span></span>
+      <span class="spell-slot" id="slot-0">💥<span class="spell-label">BURST [1]</span></span>
+      <span class="spell-slot" id="slot-1">⚡<span class="spell-label">RUSH [2]</span></span>
+      <span class="spell-slot" id="slot-2">🌑<span class="spell-label">SHROUD [3]</span></span>
     </span>
-    <span id="effect-hud" style="color:#aaa;font-size:12px;min-width:120px;text-align:center;"></span>
+    <span id="effect-hud"></span>
   </div>
-  <canvas id="gc" width="640" height="480"></canvas>
+  <canvas id="gc" width="800" height="600"></canvas>
 </div>
 
 <div id="overlay">
   <h1>GRAVE CRAWLER</h1>
   <h2>ARISE. DEVOUR. GROW.</h2>
-  <p>Arrow keys / WASD — Move</p>
-  <p>1 — Bone Burst (💥 -3 segs, clears path)</p>
-  <p>2 — Spectral Rush (⚡ -2 segs, speed boost)</p>
-  <p>3 — Death Shroud (🌑 -4 segs, brief invincibility)</p>
-  <p class="spell-hint">Spells consume your own body — don't cast when small!</p>
+  <p>Arrow keys / WASD — Slither</p>
+  <p>1 — 💥 Bone Burst (costs 3 segments — clears path ahead)</p>
+  <p>2 — ⚡ Spectral Rush (costs 2 segments — speed surge)</p>
+  <p>3 — 🌑 Death Shroud (costs 4 segments — brief invincibility)</p>
+  <p class="spell-hint">Spells consume your body — do not cast when small!</p>
   <button id="start-btn">CRAWL FORTH</button>
 </div>
 
 <script>
-// ── CONFIG ─────────────────────────────────────────────────────────────────
-const CELL = 32;               // grid cell size px
-const COLS = 20, ROWS = 15;    // 640x480
-const BASE_INTERVAL = 160;     // ms per tick
-const VILLAGER_WANDER_CHANCE = 0.35; // % of villagers that wander vs panic
+// ── CONFIG ───────────────────────────────────────────────────────────────
+const CELL  = 32;
+const COLS  = 25;   // 800px wide
+const ROWS  = 18;   // 576px tall (leaves 24px slack, grid-aligned)
+const W = COLS * CELL; // 800
+const H = ROWS * CELL; // 576
+document.getElementById("gc").width  = W;
+document.getElementById("gc").height = H;
 
-// ── SPRITES ────────────────────────────────────────────────────────────────
-const IMG = {};
-function loadImg(key, src) {
-  return new Promise(res => {
-    const i = new Image(); i.onload = () => { IMG[key] = i; res(); }; i.src = src;
-  });
-}
+const BASE_INTERVAL = 155;
 
-// ── CANVAS ─────────────────────────────────────────────────────────────────
+const SPELLS = [
+  { name:"BONE BURST",    cost:3, emoji:"💥" },
+  { name:"SPECTRAL RUSH", cost:2, emoji:"⚡" },
+  { name:"DEATH SHROUD",  cost:4, emoji:"🌑" },
+];
+
+// ── CANVAS ───────────────────────────────────────────────────────────────
 const canvas = document.getElementById("gc");
 const ctx    = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
-// ── GAME STATE ─────────────────────────────────────────────────────────────
-let snake, dir, nextDir, score, gameOver, intervalId, spellEffects, villagers, props;
-let rushTimer = 0, shroudTimer = 0;
-
-const SPELLS = [
-  { name:"BONE BURST",    cost:3, key:"1", icon:"💥" },
-  { name:"SPECTRAL RUSH", cost:2, key:"2", icon:"⚡" },
-  { name:"DEATH SHROUD",  cost:4, key:"3", icon:"🌑" },
-];
-
-// ── SCENE PROPS (scale objects — static decorations for giant-monster illusion)
-function spawnProps() {
-  const list = [];
-  const avoid = new Set();
-  // borders + keep center clear for start
-  function addProp(col, row, type) {
-    avoid.add(`${col},${row}`);
-    list.push({ col, row, type });
-  }
-  const propTypes = ["cottage","well","cart","tent"];
-  // place 8 props on edges and corners away from center spawn
-  const positions = [
-    {c:1,r:1},{c:18,r:1},{c:1,r:13},{c:18,r:13},
-    {c:5,r:2},{c:14,r:2},{c:5,r:12},{c:14,r:12}
-  ];
-  positions.forEach((p,i) => addProp(p.c, p.r, propTypes[i % propTypes.length]));
-  return { list, avoid };
-}
-
-// ── VILLAGER BEHAVIOR ───────────────────────────────────────────────────────
-function spawnVillagers(propAvoid) {
-  const vs = [];
-  for(let i=0; i<6; i++) {
-    let c, r;
-    do { c = 2 + Math.floor(Math.random()*(COLS-4)); r = 2 + Math.floor(Math.random()*(ROWS-4)); }
-    while(propAvoid.has(`${c},${r}`) || (c===10&&r===7));
-    vs.push({
-      col:c, row:r,
-      wanders: Math.random() < VILLAGER_WANDER_CHANCE,
-      frame:0, frameTimer:0, dir:[0,0],
-      wanderTimer: Math.floor(Math.random()*8)+4
-    });
-  }
-  return vs;
-}
-
-function tickVillagers(snakeSet) {
-  villagers.forEach(v => {
-    v.frameTimer++;
-    if(v.frameTimer > 8) { v.frame = (v.frame+1)%4; v.frameTimer=0; }
-    if(!v.wanders) return;
-    v.wanderTimer--;
-    if(v.wanderTimer > 0) return;
-    v.wanderTimer = Math.floor(Math.random()*8)+4;
-    // pick a random direction away from snake head
-    const dirs = [[0,-1],[0,1],[-1,0],[1,0],[0,0]];
-    const head = snake[0];
-    const dx = v.col - head.col, dy = v.row - head.row;
-    // bias away from snake
-    let choices = dirs.filter(d => {
-      const nc = v.col+d[0], nr = v.row+d[1];
-      return nc>=1&&nc<COLS-1&&nr>=1&&nr<ROWS-1&&!snakeSet.has(`${nc},${nr}`);
-    });
-    if(choices.length===0) return;
-    // prefer moving away from snake
-    choices.sort((a,b) => {
-      const da = (v.col+a[0]-head.col)**2+(v.row+a[1]-head.row)**2;
-      const db = (v.col+b[0]-head.col)**2+(v.row+b[1]-head.row)**2;
-      return db-da;
-    });
-    // 60% go furthest, 40% random
-    const d = Math.random()<0.6 ? choices[0] : choices[Math.floor(Math.random()*choices.length)];
-    v.col += d[0]; v.row += d[1];
-    v.dir = d;
+// ── IMAGE LOADING ─────────────────────────────────────────────────────── 
+const IMG = {};
+function loadImg(key, src) {
+  return new Promise(res => {
+    const i = new Image();
+    i.onload  = () => { IMG[key] = i; res(); };
+    i.onerror = () => { IMG[key] = null; res(); };
+    i.src = src;
   });
 }
 
-function respawnVillager(idx) {
-  const propAvoid = new Set(props.list.map(p=>`${p.col},${p.row}`));
-  const snakeSet  = new Set(snake.map(s=>`${s.col},${s.row}`));
-  let c, r, tries=0;
+// ── SPRITE HELPERS ───────────────────────────────────────────────────────
+// Snake sheet: 512x512, 2x2 grid → each cell = 256x256
+// TL=head, TR=body-straight, BL=body-curve, BR=tail
+const SNAKE_CELL = 256;
+const SNAKE_MAP  = { head:[0,0], body:[1,0], curve:[0,1], tail:[1,1] };
+
+function drawSnakeSprite(type, x, y, angle) {
+  const [sx,sy] = SNAKE_MAP[type] || [1,0];
+  ctx.save();
+  ctx.translate(x + CELL/2, y + CELL/2);
+  if(angle !== undefined) ctx.rotate(angle);
+  ctx.drawImage(
+    IMG.snake,
+    sx * SNAKE_CELL, sy * SNAKE_CELL, SNAKE_CELL, SNAKE_CELL,
+    -CELL/2, -CELL/2, CELL, CELL
+  );
+  ctx.restore();
+}
+
+// Villager sheet: 256x64, 4 sprites at 64x64 each
+function drawVillagerSprite(frame, x, y) {
+  ctx.drawImage(
+    IMG.villager,
+    frame * 64, 0, 64, 64,
+    x, y, CELL, CELL
+  );
+}
+
+// Props sheet: 512x512
+// Top row: 4 props at 128x128 (cottage=0, well=1, cart=2, tent=3)
+// Bottom row: 3 spell orbs at 128x128 (burst=0, rush=1, shroud=2) — not used as pickups in this version
+const PROP_MAP   = { cottage:0, well:1, cart:2, tent:3 };
+function drawPropSprite(type, x, y) {
+  const idx = PROP_MAP[type] ?? 0;
+  ctx.drawImage(
+    IMG.props,
+    idx * 128, 0, 128, 128,
+    x - 8, y - 8, CELL + 16, CELL + 16
+  );
+}
+
+// ── GAME STATE ───────────────────────────────────────────────────────────
+let snake, dir, nextDir, score, gameOver, intervalId, spellFx, villagers, propList;
+let rushTimer = 0, shroudTimer = 0;
+
+// ── PROPS ─────────────────────────────────────────────────────────────── 
+function buildProps() {
+  const types = ["cottage","well","cart","tent","well","cart","cottage","tent","well","cart"];
+  const raw   = [
+    {c:1,r:1},{c:23,r:1},{c:1,r:16},{c:23,r:16},
+    {c:6,r:2},{c:18,r:2},{c:6,r:15},{c:18,r:15},
+    {c:12,r:1},{c:12,r:16}
+  ];
+  const avoid = new Set();
+  const list  = raw.map((p,i) => {
+    avoid.add(`${p.c},${p.r}`);
+    return { col:p.c, row:p.r, type:types[i] };
+  });
+  return { list, avoid };
+}
+
+// ── VILLAGERS ─────────────────────────────────────────────────────────── 
+function makeVillager(propAvoid, snakeSet) {
+  let c, r, tries = 0;
   do {
-    c = 2+Math.floor(Math.random()*(COLS-4));
-    r = 2+Math.floor(Math.random()*(ROWS-4));
+    c = 2 + Math.floor(Math.random() * (COLS - 4));
+    r = 2 + Math.floor(Math.random() * (ROWS - 4));
     tries++;
-  } while((propAvoid.has(`${c},${r}`)||snakeSet.has(`${c},${r}`)) && tries<100);
-  villagers[idx] = {
+  } while((propAvoid.has(`${c},${r}`) || (snakeSet && snakeSet.has(`${c},${r}`))) && tries < 200);
+  return {
     col:c, row:r,
-    wanders: Math.random()<VILLAGER_WANDER_CHANCE,
-    frame:0, frameTimer:0, dir:[0,0],
-    wanderTimer: Math.floor(Math.random()*8)+4
+    wanders: Math.random() < 0.4,
+    frame:0, frameTimer:0,
+    wanderTimer: 4 + Math.floor(Math.random() * 8)
   };
 }
 
-// ── INIT ────────────────────────────────────────────────────────────────────
+function buildVillagers(propAvoid) {
+  const vs = [];
+  for(let i = 0; i < 8; i++) vs.push(makeVillager(propAvoid, null));
+  return vs;
+}
+
+function tickVillagers() {
+  const snakeSet = new Set(snake.map(s=>`${s.col},${s.row}`));
+  const propSet  = new Set(propList.list.map(p=>`${p.col},${p.row}`));
+  const head     = snake[0];
+  villagers.forEach(v => {
+    v.frameTimer++;
+    if(v.frameTimer >= 8) { v.frame = (v.frame+1)%4; v.frameTimer=0; }
+    if(!v.wanders) return;
+    if(--v.wanderTimer > 0) return;
+    v.wanderTimer = 4 + Math.floor(Math.random()*8);
+    const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+    const valid = dirs.filter(d => {
+      const nc = v.col+d[0], nr = v.row+d[1];
+      return nc>=1&&nc<COLS-1&&nr>=1&&nr<ROWS-1&&!snakeSet.has(`${nc},${nr}`)&&!propSet.has(`${nc},${nr}`);
+    });
+    if(!valid.length) return;
+    // bias away from snake head
+    valid.sort((a,b)=>{
+      const da=(v.col+a[0]-head.col)**2+(v.row+a[1]-head.row)**2;
+      const db=(v.col+b[0]-head.col)**2+(v.row+b[1]-head.row)**2;
+      return db-da;
+    });
+    const d = Math.random()<0.65 ? valid[0] : valid[Math.floor(Math.random()*valid.length)];
+    v.col += d[0]; v.row += d[1];
+  });
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────
 function initGame() {
-  snake   = [{col:10,row:7},{col:9,row:7},{col:8,row:7}];
+  const startCol = Math.floor(COLS/2);
+  const startRow = Math.floor(ROWS/2);
+  snake   = [{col:startCol,row:startRow},{col:startCol-1,row:startRow},{col:startCol-2,row:startRow}];
   dir     = {col:1,row:0};
   nextDir = {col:1,row:0};
   score   = 0; gameOver = false;
-  rushTimer=0; shroudTimer=0;
-  spellEffects = [];
-  const pd = spawnProps();
-  props = pd;
-  villagers = spawnVillagers(pd.avoid);
+  rushTimer = 0; shroudTimer = 0;
+  spellFx  = [];
+  propList = buildProps();
+  villagers = buildVillagers(propList.avoid);
   updateHUD();
 }
 
-// ── MOVEMENT ─────────────────────────────────────────────────────────────── 
+// ── TICK ─────────────────────────────────────────────────────────────────
 function tick() {
   if(gameOver) return;
+  dir = {...nextDir};
+  const head    = snake[0];
+  const newHead = { col:head.col+dir.col, row:head.row+dir.row };
 
-  // flush direction
-  dir = { ...nextDir };
-
-  // apply rush speed: if rushTimer, this tick fires twice (handled by double interval)
-  const head  = snake[0];
-  const newHead = { col: head.col + dir.col, row: head.row + dir.row };
-
-  // wall collision
-  if(newHead.col<0||newHead.col>=COLS||newHead.row<0||newHead.row>=ROWS) {
+  // Wall
+  if(newHead.col<0||newHead.col>=COLS||newHead.row<0||newHead.row>=ROWS)
     return endGame("CRUSHED AGAINST THE WALLS");
-  }
 
-  // self collision (unless shroud active)
+  // Self
   const bodySet = new Set(snake.map(s=>`${s.col},${s.row}`));
-  if(shroudTimer<=0 && bodySet.has(`${newHead.col},${newHead.row}`)) {
+  if(shroudTimer<=0 && bodySet.has(`${newHead.col},${newHead.row}`))
     return endGame("CONSUMED BY YOUR OWN HUNGER");
-  }
 
-  // prop collision (solid)
-  const propSet = new Set(props.list.map(p=>`${p.col},${p.row}`));
-  if(propSet.has(`${newHead.col},${newHead.row}`)) {
+  // Props (solid obstacles)
+  const propSet = new Set(propList.list.map(p=>`${p.col},${p.row}`));
+  if(propSet.has(`${newHead.col},${newHead.row}`))
     return endGame("IMPALED ON STONE");
-  }
 
   snake.unshift(newHead);
 
-  // eat villager?
   let ate = false;
   for(let i=0; i<villagers.length; i++) {
     const v = villagers[i];
     if(v.col===newHead.col && v.row===newHead.row) {
-      score += 10;
-      ate = true;
-      spellEffects.push({ type:"eat", col:v.col, row:v.row, life:8 });
-      respawnVillager(i);
+      score += 10; ate = true;
+      spellFx.push({type:"eat", col:v.col, row:v.row, life:10});
+      // Respawn
+      villagers[i] = makeVillager(propList.avoid, new Set(snake.map(s=>`${s.col},${s.row}`)));
       break;
     }
   }
   if(!ate) snake.pop();
 
-  // tick villagers (after snake moved)
-  tickVillagers(new Set(snake.map(s=>`${s.col},${s.row}`)));
+  tickVillagers();
 
-  // decay timers
-  if(rushTimer > 0)  rushTimer--;
-  if(shroudTimer > 0) shroudTimer--;
+  if(rushTimer>0)  rushTimer--;
+  if(shroudTimer>0) shroudTimer--;
+  spellFx = spellFx.filter(e=>{ e.life--; return e.life>0; });
 
-  // tick spell effects
-  spellEffects = spellEffects.filter(e => { e.life--; return e.life>0; });
-
-  // reschedule (rush = faster)
-  const interval = rushTimer > 0 ? BASE_INTERVAL * 0.45 : BASE_INTERVAL;
+  const interval = rushTimer>0 ? BASE_INTERVAL*0.4 : BASE_INTERVAL;
   clearInterval(intervalId);
   intervalId = setInterval(tick, interval);
 
@@ -284,232 +300,217 @@ function tick() {
   draw();
 }
 
-// ── SPELLS ──────────────────────────────────────────────────────────────────
+// ── SPELLS ───────────────────────────────────────────────────────────────
 function castSpell(idx) {
   if(gameOver) return;
   const sp = SPELLS[idx];
-  if(snake.length - sp.cost < 3) {
-    flashHUD("TOO SMALL TO CAST"); return;
-  }
-  // consume tail segments
-  for(let i=0; i<sp.cost; i++) snake.pop();
+  if(snake.length - sp.cost < 3) { showEffect("⚠ TOO SMALL TO CAST", 1200); return; }
+  for(let i=0;i<sp.cost;i++) snake.pop();
 
   if(idx===0) {
-    // BONE BURST: clear 3 cells ahead of head
-    for(let i=1; i<=3; i++) {
-      const bc = snake[0].col + dir.col*i;
-      const br = snake[0].row + dir.row*i;
-      spellEffects.push({ type:"burst", col:bc, row:br, life:12 });
-      // remove any villager in path
-      for(let vi=0; vi<villagers.length; vi++) {
-        if(villagers[vi].col===bc && villagers[vi].row===br) {
-          score += 5; respawnVillager(vi);
+    for(let i=1;i<=3;i++) {
+      const bc=snake[0].col+dir.col*i, br=snake[0].row+dir.row*i;
+      spellFx.push({type:"burst",col:bc,row:br,life:14});
+      for(let vi=0;vi<villagers.length;vi++) {
+        if(villagers[vi].col===bc&&villagers[vi].row===br) {
+          score+=5;
+          villagers[vi]=makeVillager(propList.avoid, new Set(snake.map(s=>`${s.col},${s.row}`)));
         }
       }
     }
-    setEffectHUD("💥 BONE BURST!", 2000);
+    showEffect("💥 BONE BURST!", 1800);
   } else if(idx===1) {
-    // SPECTRAL RUSH: speed up for 10 ticks
-    rushTimer = 10;
-    setEffectHUD("⚡ SPECTRAL RUSH!", 2000);
+    rushTimer=12;
+    showEffect("⚡ SPECTRAL RUSH!", 1800);
   } else if(idx===2) {
-    // DEATH SHROUD: invincibility 8 ticks
-    shroudTimer = 8;
-    setEffectHUD("🌑 DEATH SHROUD!", 2000);
+    shroudTimer=10;
+    showEffect("🌑 DEATH SHROUD!", 1800);
   }
-  updateHUD();
-  draw();
+  updateHUD(); draw();
 }
 
-let effectTimeout;
-function setEffectHUD(msg, ms) {
+let effectTO;
+function showEffect(msg, ms) {
   document.getElementById("effect-hud").textContent = msg;
-  clearTimeout(effectTimeout);
-  effectTimeout = setTimeout(()=>document.getElementById("effect-hud").textContent="", ms);
+  clearTimeout(effectTO);
+  effectTO = setTimeout(()=>document.getElementById("effect-hud").textContent="", ms);
 }
-function flashHUD(msg) { setEffectHUD("⚠ "+msg, 1500); }
 
-// ── HUD ──────────────────────────────────────────────────────────────────── 
+// ── HUD ───────────────────────────────────────────────────────────────── 
 function updateHUD() {
   document.getElementById("score-hud").textContent  = score;
   document.getElementById("length-hud").textContent = snake.length;
   SPELLS.forEach((sp,i) => {
     const el = document.getElementById("slot-"+i);
-    el.classList.toggle("ready", snake.length > sp.cost+2);
+    const ready = snake.length > sp.cost + 2;
+    el.className = "spell-slot " + (ready ? "ready" : "not-ready");
+    if(i===1&&rushTimer>0)   el.classList.add("active");
+    if(i===2&&shroudTimer>0) el.classList.add("active");
   });
-  if(shroudTimer>0) document.getElementById("slot-2").classList.add("active");
-  if(rushTimer>0)   document.getElementById("slot-1").classList.add("active");
 }
 
-// ── DRAW ─────────────────────────────────────────────────────────────────── 
+// ── DRAW ──────────────────────────────────────────────────────────────── 
 function draw() {
-  ctx.clearRect(0,0,640,480);
-  drawBackground();
-  drawProps();
-  drawVillagers();
-  drawSpellEffects();
+  ctx.clearRect(0,0,W,H);
+
+  // Background
+  if(IMG.bg) {
+    ctx.drawImage(IMG.bg, 0, 0, W, H);
+  } else {
+    ctx.fillStyle="#151510"; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="#1e1e16"; ctx.lineWidth=1;
+    for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++) ctx.strokeRect(c*CELL,r*CELL,CELL,CELL);
+  }
+
+  // Death shroud tint
+  if(shroudTimer>0) {
+    ctx.fillStyle=`rgba(20,0,50,${0.4*(shroudTimer/10)})`;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Props
+  propList.list.forEach(p => {
+    const x=p.col*CELL, y=p.row*CELL;
+    if(IMG.props) {
+      drawPropSprite(p.type, x, y);
+    } else {
+      ctx.fillStyle="#443322"; ctx.fillRect(x+2,y+2,CELL-4,CELL-4);
+      ctx.fillStyle="#221108"; ctx.font="18px serif"; ctx.textAlign="center";
+      ctx.fillText("🏠",x+CELL/2,y+CELL/2+6);
+    }
+  });
+
+  // Villagers
+  villagers.forEach(v => {
+    const x=v.col*CELL, y=v.row*CELL;
+    if(IMG.villager) {
+      drawVillagerSprite(v.frame, x, y);
+    } else {
+      // fallback: tiny figure
+      ctx.fillStyle="#c8884b";
+      ctx.fillRect(x+10,y+8,12,18);
+      ctx.fillStyle="#f0c070";
+      ctx.beginPath(); ctx.arc(x+16,y+6,5,0,Math.PI*2); ctx.fill();
+    }
+  });
+
+  // Spell FX
+  spellFx.forEach(e => {
+    const x=e.col*CELL, y=e.row*CELL;
+    if(e.type==="burst") {
+      const t=e.life/14;
+      ctx.save();
+      ctx.globalAlpha=t;
+      ctx.shadowColor="#ff7020"; ctx.shadowBlur=20;
+      ctx.fillStyle=`rgb(255,${Math.floor(80+120*t)},20)`;
+      const r=(CELL/2)*t+6;
+      ctx.beginPath(); ctx.arc(x+CELL/2,y+CELL/2,r,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    } else if(e.type==="eat") {
+      ctx.save();
+      ctx.globalAlpha=e.life/10;
+      ctx.fillStyle="#c8a84b";
+      ctx.font=`bold ${13+(10-e.life)}px 'Courier New'`;
+      ctx.textAlign="center";
+      ctx.shadowColor="#c8a84b"; ctx.shadowBlur=8;
+      ctx.fillText("+10", x+CELL/2, y - (10-e.life)*2);
+      ctx.restore();
+    }
+  });
+
+  // Snake
   drawSnake();
 }
 
-function drawBackground() {
-  if(IMG.bg) {
-    ctx.drawImage(IMG.bg, 0, 0, 640, 480);
-  } else {
-    // fallback: stone-grey grid
-    ctx.fillStyle="#1a1a1a"; ctx.fillRect(0,0,640,480);
-    ctx.strokeStyle="#222"; ctx.lineWidth=1;
-    for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++) {
-      ctx.strokeRect(c*CELL, r*CELL, CELL, CELL);
-    }
-  }
-  // death shroud overlay
-  if(shroudTimer>0) {
-    ctx.fillStyle=`rgba(30,0,60,${0.35*(shroudTimer/8)})`;
-    ctx.fillRect(0,0,640,480);
-  }
-}
-
-// Sprite extraction helpers
-function snakeSprite(type) {
-  // sprite sheet 2x2: TL=head, TR=body-wide, BL=tail, BR=body-curve
-  const map = { head:[0,0], body:[1,0], tail:[0,1], curve:[1,1] };
-  const [sx,sy] = map[type] || [1,0];
-  return { img: IMG.snake, sx: sx*256, sy: sy*256, sw:256, sh:256 };
-}
-function villagerFrame(frame) {
-  // 4 frames in a row
-  return { img: IMG.villager, sx: frame*64, sy:0, sw:64, sh:64 };
-}
-function propSprite(type) {
-  const map = { cottage:0, well:1, cart:2, tent:3 };
-  const idx = map[type]||0;
-  return { img: IMG.props, sx: idx*128, sy:0, sw:128, sh:128 };
-}
-function spellOrbSprite(type) {
-  // bottom row of props sprite: 3 orbs
-  const map = { burst:0, rush:1, shroud:2 };
-  const idx = map[type]||0;
-  return { img: IMG.props, sx: idx*128, sy:128, sw:128, sh:128 };
-}
-
-function drawProps() {
-  props.list.forEach(p => {
-    const sp = propSprite(p.type);
-    if(sp.img) {
-      ctx.drawImage(sp.img, sp.sx, sp.sy, sp.sw, sp.sh, p.col*CELL-8, p.row*CELL-8, CELL+16, CELL+16);
-    } else {
-      ctx.fillStyle="#554422"; ctx.fillRect(p.col*CELL+2, p.row*CELL+2, CELL-4, CELL-4);
-    }
-  });
-}
-
-function drawVillagers() {
-  villagers.forEach(v => {
-    const fr = villagerFrame(v.frame);
-    if(fr.img) {
-      ctx.drawImage(fr.img, fr.sx, fr.sy, fr.sw, fr.sh, v.col*CELL, v.row*CELL, CELL, CELL);
-    } else {
-      // fallback tiny person
-      ctx.fillStyle="#c8884b";
-      ctx.fillRect(v.col*CELL+10, v.row*CELL+6, 12, 20);
-      ctx.fillStyle="#f0c080";
-      ctx.beginPath(); ctx.arc(v.col*CELL+16, v.row*CELL+6, 6, 0, Math.PI*2); ctx.fill();
-    }
-  });
-}
-
 function drawSnake() {
+  const len = snake.length;
   snake.forEach((seg, i) => {
-    const x = seg.col*CELL, y = seg.row*CELL;
+    const x=seg.col*CELL, y=seg.row*CELL;
+    const alpha = shroudTimer>0 ? (0.4+0.6*Math.sin(Date.now()/60)) : 1;
+
     if(IMG.snake) {
-      let type = "body";
-      if(i===0) type = "head";
-      else if(i===snake.length-1) type = "tail";
-      const sp = snakeSprite(type);
       ctx.save();
-      ctx.translate(x+CELL/2, y+CELL/2);
-      // rotate based on direction
+      ctx.globalAlpha = alpha;
       if(i===0) {
+        // Head: rotate to face direction
         const angle = Math.atan2(dir.row, dir.col);
-        ctx.rotate(angle);
+        drawSnakeSprite("head", x, y, angle);
+      } else if(i===len-1) {
+        // Tail: rotate to face prev segment
+        const prev = snake[i-1];
+        const angle = Math.atan2(seg.row-prev.row, seg.col-prev.col) + Math.PI;
+        drawSnakeSprite("tail", x, y, angle);
+      } else {
+        // Body: detect corner vs straight
+        const prev=snake[i-1], next=snake[i+1];
+        const dx1=prev.col-seg.col, dy1=prev.row-seg.row;
+        const dx2=next.col-seg.col, dy2=next.row-seg.row;
+        const straight = (dx1===-dx2) || (dy1===-dy2);
+        if(straight) {
+          const angle = Math.atan2(dy1+dy2, dx1+dx2) + Math.PI/2;
+          // alternate for visual variety
+          const type = i%3===0 ? "body" : "body";
+          drawSnakeSprite(type, x, y, angle);
+        } else {
+          // Corner: rotate curve sprite
+          const angle = Math.atan2(dy1+dy2, dx1+dx2) + Math.PI/4;
+          drawSnakeSprite("curve", x, y, angle);
+        }
       }
-      // shroud flicker
-      if(shroudTimer>0) ctx.globalAlpha = 0.5+0.5*Math.sin(Date.now()/80);
-      // white bg key: draw with destination-in to mask white
-      ctx.drawImage(sp.img, sp.sx, sp.sy, sp.sw, sp.sh, -CELL/2-2, -CELL/2-2, CELL+4, CELL+4);
-      ctx.globalAlpha=1;
       ctx.restore();
     } else {
-      // fallback procedural bone snake
-      const alpha = shroudTimer>0 ? (0.5+0.5*Math.sin(Date.now()/80)) : 1;
+      // Procedural fallback
+      ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = i===0 ? "#e8d0a0" : (i%2===0 ? "#c4a87a" : "#a88c60");
-      const pad = i===0 ? 2 : 4;
-      ctx.fillRect(x+pad, y+pad, CELL-pad*2, CELL-pad*2);
+      ctx.fillStyle = i===0 ? "#d0bc88" : (i%2===0?"#a8926a":"#907854");
+      const p=i===0?2:3;
+      ctx.fillRect(x+p,y+p,CELL-p*2,CELL-p*2);
       if(i===0) {
-        // glowing eye
-        ctx.fillStyle="#ff3300"; ctx.shadowColor="#ff3300"; ctx.shadowBlur=8;
-        ctx.fillRect(x+CELL/2-8+dir.col*4, y+CELL/2-4+dir.row*4, 4, 4);
-        ctx.fillRect(x+CELL/2+4+dir.col*4, y+CELL/2-4+dir.row*4, 4, 4);
+        ctx.fillStyle="#ff4400"; ctx.shadowColor="#ff4400"; ctx.shadowBlur=10;
+        ctx.fillRect(x+CELL/2-7+dir.col*5, y+CELL/2-3+dir.row*5, 4,4);
+        ctx.fillRect(x+CELL/2+3+dir.col*5, y+CELL/2-3+dir.row*5, 4,4);
         ctx.shadowBlur=0;
       }
-      ctx.globalAlpha=1;
+      ctx.restore();
     }
   });
 }
 
-function drawSpellEffects() {
-  spellEffects.forEach(e => {
-    const x = e.col*CELL, y = e.row*CELL;
-    if(e.type==="burst") {
-      ctx.fillStyle=`rgba(255,120,30,${e.life/12})`;
-      ctx.shadowColor="#ff7020"; ctx.shadowBlur=20;
-      ctx.beginPath(); ctx.arc(x+CELL/2, y+CELL/2, (CELL/2)*(e.life/12)+4, 0, Math.PI*2); ctx.fill();
-      ctx.shadowBlur=0;
-    } else if(e.type==="eat") {
-      ctx.fillStyle=`rgba(200,168,75,${e.life/8})`;
-      ctx.font=`bold ${16+((8-e.life)*2)}px Courier New`;
-      ctx.textAlign="center";
-      ctx.fillText("+10", x+CELL/2, y+CELL/2 - (8-e.life)*2);
-    }
-  });
-}
-
-// ── END GAME ─────────────────────────────────────────────────────────────── 
-const DEATH_MSGS = [
+// ── END GAME ─────────────────────────────────────────────────────────────
+const DEATHS = [
   "THE GRAVE RECLAIMS ITS OWN",
   "SILENCE FALLS OVER THE RUINS",
   "THE WYRM CRUMBLES TO DUST",
-  "ANOTHER SOUL FOR THE EARTH"
+  "ANOTHER SOUL FOR THE EARTH",
+  "THE BONES RETURN TO DUST",
 ];
 function endGame(reason) {
   gameOver = true;
   clearInterval(intervalId);
   draw();
-  // Show overlay
   const ov = document.getElementById("overlay");
   ov.innerHTML = `
-    <div id="game-over-msg">GRAVE CRAWLER FALLS</div>
+    <div id="game-over-msg">THE CRAWLER FALLS</div>
     <div id="death-flavor">${reason}</div>
-    <div id="score-big">💀 ${score} SOULS</div>
-    <p>Length: ${snake.length} segments</p>
-    <button id="start-btn" style="margin-top:28px">RISE AGAIN</button>
+    <div id="score-big">💀 ${score}</div>
+    <p>Length reached: ${snake.length} segments</p>
+    <button id="start-btn" style="margin-top:32px">RISE AGAIN</button>
   `;
   ov.classList.remove("overlay-hidden");
   document.getElementById("start-btn").addEventListener("click", startGame);
 }
 
-// ── INPUT ────────────────────────────────────────────────────────────────── 
-const KEY_MAP = {
-  ArrowUp:{col:0,row:-1}, ArrowDown:{col:0,row:1}, ArrowLeft:{col:-1,row:0}, ArrowRight:{col:1,row:0},
+// ── INPUT ─────────────────────────────────────────────────────────────── 
+const KEYS = {
+  ArrowUp:{col:0,row:-1}, ArrowDown:{col:0,row:1},
+  ArrowLeft:{col:-1,row:0}, ArrowRight:{col:1,row:0},
   w:{col:0,row:-1}, s:{col:0,row:1}, a:{col:-1,row:0}, d:{col:1,row:0},
   W:{col:0,row:-1}, S:{col:0,row:1}, A:{col:-1,row:0}, D:{col:1,row:0},
 };
 document.addEventListener("keydown", e => {
-  if(KEY_MAP[e.key]) {
+  if(KEYS[e.key]) {
     e.preventDefault();
-    const nd = KEY_MAP[e.key];
-    // prevent 180 reverse
+    const nd=KEYS[e.key];
     if(nd.col !== -dir.col || nd.row !== -dir.row) nextDir = nd;
   }
   if(e.key==="1") { e.preventDefault(); castSpell(0); }
@@ -517,7 +518,7 @@ document.addEventListener("keydown", e => {
   if(e.key==="3") { e.preventDefault(); castSpell(2); }
 });
 
-// ── START ─────────────────────────────────────────────────────────────────
+// ── START ─────────────────────────────────────────────────────────────── 
 function startGame() {
   document.getElementById("overlay").classList.add("overlay-hidden");
   initGame();
@@ -526,20 +527,17 @@ function startGame() {
   draw();
 }
 
-// ── BOOT ─────────────────────────────────────────────────────────────────── 
+// ── BOOT ──────────────────────────────────────────────────────────────── 
 Promise.all([
   loadImg("bg",      "assets/bg.jpg"),
-  loadImg("snake",   "assets/snake.jpg"),
-  loadImg("villager","assets/villager.jpg"),
+  loadImg("snake",   "assets/snake.png"),
+  loadImg("villager","assets/villager.png"),
   loadImg("props",   "assets/props.jpg"),
 ]).then(() => {
-  initGame();
-  draw(); // preview behind overlay
+  initGame(); draw();
   document.getElementById("start-btn").addEventListener("click", startGame);
-}).catch(()=>{
-  // assets failed — run in fallback mode
-  initGame();
-  draw();
+}).catch(() => {
+  initGame(); draw();
   document.getElementById("start-btn").addEventListener("click", startGame);
 });
 </script>
