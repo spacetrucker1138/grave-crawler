@@ -283,8 +283,9 @@ function tickVillagers() {
         }
       }
     }
-    if(knightAnnounce > 0) knightAnnounce--;
   }
+  // Decrement banner independently of knight alive/dead state
+  if(knightAnnounce > 0) knightAnnounce--;
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────
@@ -495,9 +496,11 @@ function draw() {
 
   // Green Knight announcement banner
   if(knightAnnounce > 0) {
-    const alpha = Math.min(1, knightAnnounce/20) * Math.min(1, (knightAnnounce)/20);
+    // fade in over first 10 frames, fade out over last 20 frames
+    const fadeIn  = Math.min(1, (90 - knightAnnounce) / 10);
+    const fadeOut = Math.min(1, knightAnnounce / 20);
     ctx.save();
-    ctx.globalAlpha = Math.min(1, knightAnnounce/20);
+    ctx.globalAlpha = Math.min(fadeIn, fadeOut);
     ctx.fillStyle = "rgba(10,40,10,0.82)";
     ctx.fillRect(W/2 - 240, H/2 - 36, 480, 64);
     ctx.strokeStyle = "#44ff44";
