@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Grave Crawler</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background:#0a0a0a;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      height:100vh; overflow:hidden;
+      font-family:'Courier New', monospace;
+    }
+    #wrapper {
+      display:flex; flex-direction:column; align-items:center; gap:8px;
+    }
+    #hud {
+      display:flex; gap:24px; align-items:center;
+      color:#c8a84b; font-size:14px; letter-spacing:2px;
+      text-shadow:0 0 8px #c8a84b88;
+    }
+    #hud span { display:flex; align-items:center; gap:6px; }
+    #spell-bar {
+      display:flex; gap:10px; align-items:center;
+    }
+    .spell-slot {
+      width:36px; height:36px; border:2px solid #444;
+      border-radius:4px; display:flex; align-items:center;
+      justify-content:center; font-size:18px; cursor:pointer;
+      background:#111; position:relative; transition:border-color .15s;
+    }
+    .spell-slot.ready  { border-color:#c8a84b; box-shadow:0 0 8px #c8a84b66; }
+    .spell-slot.active { border-color:#fff; background:#222; }
+    .spell-label {
+      position:absolute; bottom:-18px; left:50%; transform:translateX(-50%);
+      font-size:9px; color:#888; white-space:nowrap; letter-spacing:1px;
+    }
+    canvas {
+      display:block;
+      image-rendering:pixelated; image-rendering:crisp-edges;
+      border:2px solid #2a1a0a;
+      box-shadow:0 0 40px #000, inset 0 0 60px #00000088;
+    }
+    #overlay {
+      position:fixed; inset:0; background:#000000cc;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:10; color:#c8a84b;
+    }
+    #overlay h1 {
+      font-size:48px; letter-spacing:8px; text-shadow:0 0 20px #c8a84b;
+      margin-bottom:12px; font-weight:900;
+    }
+    #overlay h2 { font-size:20px; color:#888; letter-spacing:4px; margin-bottom:40px; }
+    #overlay p  { color:#aaa; font-size:13px; letter-spacing:1px; margin:4px 0; }
+    #overlay .spell-hint { color:#c8a84b88; font-size:11px; margin-top:8px; }
+    #start-btn {
+      margin-top:32px; padding:14px 48px; background:transparent;
+      border:2px solid #c8a84b; color:#c8a84b; font-size:18px;
+      letter-spacing:4px; cursor:pointer; font-family:inherit;
+      text-transform:uppercase; transition:all .2s;
+    }
+    #start-btn:hover { background:#c8a84b22; box-shadow:0 0 20px #c8a84b66; }
+    #score-big { font-size:36px; margin:8px 0; }
+    #game-over-msg { font-size:28px; color:#cc3333; letter-spacing:6px; text-shadow:0 0 20px #cc3333; }
+    #death-flavor { font-size:13px; color:#777; margin:8px 0 24px; }
+    .overlay-hidden { display:none !important; }
+  </style>
+</head>
+<body>
+<div id="wrapper">
+  <div id="hud">
+    <span>💀 <span id="score-hud">0</span></span>
+    <span>📏 <span id="length-hud">1</span></span>
+    <span id="spell-bar">
+      <span class="spell-slot" id="slot-0" title="[1] Bone Burst - costs 3 segments">💥<span class="spell-label">BURST [1]</span></span>
+      <span class="spell-slot" id="slot-1" title="[2] Spectral Rush - costs 2 segments">⚡<span class="spell-label">RUSH [2]</span></span>
+      <span class="spell-slot" id="slot-2" title="[3] Death Shroud - costs 4 segments">🌑<span class="spell-label">SHROUD [3]</span></span>
+    </span>
+    <span id="effect-hud" style="color:#aaa;font-size:12px;min-width:120px;text-align:center;"></span>
+  </div>
+  <canvas id="gc" width="640" height="480"></canvas>
+</div>
+
+<div id="overlay">
+  <h1>GRAVE CRAWLER</h1>
+  <h2>ARISE. DEVOUR. GROW.</h2>
+  <p>Arrow keys / WASD — Move</p>
+  <p>1 — Bone Burst (💥 -3 segs, clears path)</p>
+  <p>2 — Spectral Rush (⚡ -2 segs, speed boost)</p>
+  <p>3 — Death Shroud (🌑 -4 segs, brief invincibility)</p>
+  <p class="spell-hint">Spells consume your own body — don't cast when small!</p>
+  <button id="start-btn">CRAWL FORTH</button>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────────────────────
+const CELL = 32;               // grid cell size px
+const COLS = 20, ROWS = 15;    // 640x480
+const BASE_INTERVAL = 160;     // ms per tick
+const VILLAGER_WANDER_CHANCE = 0.35; // % of villagers that wander vs panic
+
+// ── SPRITES ────────────────────────────────────────────────────────────────
+const IMG = {};
+function loadImg(key, src) {
+  return new Promise(res => {
+    const i = new Image(); i.onload = () => { IMG[key] = i; res(); }; i.src = src;
+  });
+}
+
+// ── CANVAS ─────────────────────────────────────────────────────────────────
+const canvas = document.getElementById("gc");
+const ctx    = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+// ── GAME STATE ─────────────────────────────────────────────────────────────
+let snake, dir, nextDir, score, gameOver, intervalId, spellEffects, villagers, props;
+let rushTimer = 0, shroudTimer = 0;
+
+const SPELLS = [
+  { name:"BONE BURST",    cost:3, key:"1", icon:"💥" },
+  { name:"SPECTRAL RUSH", cost:2, key:"2", icon:"⚡" },
+  { name:"DEATH SHROUD",  cost:4, key:"3", icon:"🌑" },
+];
+
+// ── SCENE PROPS (scale objects — static decorations for giant-monster illusion)
+function spawnProps() {
+  const list = [];
+  const avoid = new Set();
+  // borders + keep center clear for start
+  function addProp(col, row, type) {
+    avoid.add(`${col},${row}`);
+    list.push({ col, row, type });
+  }
+  const propTypes = ["cottage","well","cart","tent"];
+  // place 8 props on edges and corners away from center spawn
+  const positions = [
+    {c:1,r:1},{c:18,r:1},{c:1,r:13},{c:18,r:13},
+    {c:5,r:2},{c:14,r:2},{c:5,r:12},{c:14,r:12}
+  ];
+  positions.forEach((p,i) => addProp(p.c, p.r, propTypes[i % propTypes.length]));
+  return { list, avoid };
+}
+
+// ── VILLAGER BEHAVIOR ───────────────────────────────────────────────────────
+function spawnVillagers(propAvoid) {
+  const vs = [];
+  for(let i=0; i<6; i++) {
+    let c, r;
+    do { c = 2 + Math.floor(Math.random()*(COLS-4)); r = 2 + Math.floor(Math.random()*(ROWS-4)); }
+    while(propAvoid.has(`${c},${r}`) || (c===10&&r===7));
+    vs.push({
+      col:c, row:r,
+      wanders: Math.random() < VILLAGER_WANDER_CHANCE,
+      frame:0, frameTimer:0, dir:[0,0],
+      wanderTimer: Math.floor(Math.random()*8)+4
+    });
+  }
+  return vs;
+}
+
+function tickVillagers(snakeSet) {
+  villagers.forEach(v => {
+    v.frameTimer++;
+    if(v.frameTimer > 8) { v.frame = (v.frame+1)%4; v.frameTimer=0; }
+    if(!v.wanders) return;
+    v.wanderTimer--;
+    if(v.wanderTimer > 0) return;
+    v.wanderTimer = Math.floor(Math.random()*8)+4;
+    // pick a random direction away from snake head
+    const dirs = [[0,-1],[0,1],[-1,0],[1,0],[0,0]];
+    const head = snake[0];
+    const dx = v.col - head.col, dy = v.row - head.row;
+    // bias away from snake
+    let choices = dirs.filter(d => {
+      const nc = v.col+d[0], nr = v.row+d[1];
+      return nc>=1&&nc<COLS-1&&nr>=1&&nr<ROWS-1&&!snakeSet.has(`${nc},${nr}`);
+    });
+    if(choices.length===0) return;
+    // prefer moving away from snake
+    choices.sort((a,b) => {
+      const da = (v.col+a[0]-head.col)**2+(v.row+a[1]-head.row)**2;
+      const db = (v.col+b[0]-head.col)**2+(v.row+b[1]-head.row)**2;
+      return db-da;
+    });
+    // 60% go furthest, 40% random
+    const d = Math.random()<0.6 ? choices[0] : choices[Math.floor(Math.random()*choices.length)];
+    v.col += d[0]; v.row += d[1];
+    v.dir = d;
+  });
+}
+
+function respawnVillager(idx) {
+  const propAvoid = new Set(props.list.map(p=>`${p.col},${p.row}`));
+  const snakeSet  = new Set(snake.map(s=>`${s.col},${s.row}`));
+  let c, r, tries=0;
+  do {
+    c = 2+Math.floor(Math.random()*(COLS-4));
+    r = 2+Math.floor(Math.random()*(ROWS-4));
+    tries++;
+  } while((propAvoid.has(`${c},${r}`)||snakeSet.has(`${c},${r}`)) && tries<100);
+  villagers[idx] = {
+    col:c, row:r,
+    wanders: Math.random()<VILLAGER_WANDER_CHANCE,
+    frame:0, frameTimer:0, dir:[0,0],
+    wanderTimer: Math.floor(Math.random()*8)+4
+  };
+}
+
+// ── INIT ────────────────────────────────────────────────────────────────────
+function initGame() {
+  snake   = [{col:10,row:7},{col:9,row:7},{col:8,row:7}];
+  dir     = {col:1,row:0};
+  nextDir = {col:1,row:0};
+  score   = 0; gameOver = false;
+  rushTimer=0; shroudTimer=0;
+  spellEffects = [];
+  const pd = spawnProps();
+  props = pd;
+  villagers = spawnVillagers(pd.avoid);
+  updateHUD();
+}
+
+// ── MOVEMENT ─────────────────────────────────────────────────────────────── 
+function tick() {
+  if(gameOver) return;
+
+  // flush direction
+  dir = { ...nextDir };
+
+  // apply rush speed: if rushTimer, this tick fires twice (handled by double interval)
+  const head  = snake[0];
+  const newHead = { col: head.col + dir.col, row: head.row + dir.row };
+
+  // wall collision
+  if(newHead.col<0||newHead.col>=COLS||newHead.row<0||newHead.row>=ROWS) {
+    return endGame("CRUSHED AGAINST THE WALLS");
+  }
+
+  // self collision (unless shroud active)
+  const bodySet = new Set(snake.map(s=>`${s.col},${s.row}`));
+  if(shroudTimer<=0 && bodySet.has(`${newHead.col},${newHead.row}`)) {
+    return endGame("CONSUMED BY YOUR OWN HUNGER");
+  }
+
+  // prop collision (solid)
+  const propSet = new Set(props.list.map(p=>`${p.col},${p.row}`));
+  if(propSet.has(`${newHead.col},${newHead.row}`)) {
+    return endGame("IMPALED ON STONE");
+  }
+
+  snake.unshift(newHead);
+
+  // eat villager?
+  let ate = false;
+  for(let i=0; i<villagers.length; i++) {
+    const v = villagers[i];
+    if(v.col===newHead.col && v.row===newHead.row) {
+      score += 10;
+      ate = true;
+      spellEffects.push({ type:"eat", col:v.col, row:v.row, life:8 });
+      respawnVillager(i);
+      break;
+    }
+  }
+  if(!ate) snake.pop();
+
+  // tick villagers (after snake moved)
+  tickVillagers(new Set(snake.map(s=>`${s.col},${s.row}`)));
+
+  // decay timers
+  if(rushTimer > 0)  rushTimer--;
+  if(shroudTimer > 0) shroudTimer--;
+
+  // tick spell effects
+  spellEffects = spellEffects.filter(e => { e.life--; return e.life>0; });
+
+  // reschedule (rush = faster)
+  const interval = rushTimer > 0 ? BASE_INTERVAL * 0.45 : BASE_INTERVAL;
+  clearInterval(intervalId);
+  intervalId = setInterval(tick, interval);
+
+  updateHUD();
+  draw();
+}
+
+// ── SPELLS ──────────────────────────────────────────────────────────────────
+function castSpell(idx) {
+  if(gameOver) return;
+  const sp = SPELLS[idx];
+  if(snake.length - sp.cost < 3) {
+    flashHUD("TOO SMALL TO CAST"); return;
+  }
+  // consume tail segments
+  for(let i=0; i<sp.cost; i++) snake.pop();
+
+  if(idx===0) {
+    // BONE BURST: clear 3 cells ahead of head
+    for(let i=1; i<=3; i++) {
+      const bc = snake[0].col + dir.col*i;
+      const br = snake[0].row + dir.row*i;
+      spellEffects.push({ type:"burst", col:bc, row:br, life:12 });
+      // remove any villager in path
+      for(let vi=0; vi<villagers.length; vi++) {
+        if(villagers[vi].col===bc && villagers[vi].row===br) {
+          score += 5; respawnVillager(vi);
+        }
+      }
+    }
+    setEffectHUD("💥 BONE BURST!", 2000);
+  } else if(idx===1) {
+    // SPECTRAL RUSH: speed up for 10 ticks
+    rushTimer = 10;
+    setEffectHUD("⚡ SPECTRAL RUSH!", 2000);
+  } else if(idx===2) {
+    // DEATH SHROUD: invincibility 8 ticks
+    shroudTimer = 8;
+    setEffectHUD("🌑 DEATH SHROUD!", 2000);
+  }
+  updateHUD();
+  draw();
+}
+
+let effectTimeout;
+function setEffectHUD(msg, ms) {
+  document.getElementById("effect-hud").textContent = msg;
+  clearTimeout(effectTimeout);
+  effectTimeout = setTimeout(()=>document.getElementById("effect-hud").textContent="", ms);
+}
+function flashHUD(msg) { setEffectHUD("⚠ "+msg, 1500); }
+
+// ── HUD ──────────────────────────────────────────────────────────────────── 
+function updateHUD() {
+  document.getElementById("score-hud").textContent  = score;
+  document.getElementById("length-hud").textContent = snake.length;
+  SPELLS.forEach((sp,i) => {
+    const el = document.getElementById("slot-"+i);
+    el.classList.toggle("ready", snake.length > sp.cost+2);
+  });
+  if(shroudTimer>0) document.getElementById("slot-2").classList.add("active");
+  if(rushTimer>0)   document.getElementById("slot-1").classList.add("active");
+}
+
+// ── DRAW ─────────────────────────────────────────────────────────────────── 
+function draw() {
+  ctx.clearRect(0,0,640,480);
+  drawBackground();
+  drawProps();
+  drawVillagers();
+  drawSpellEffects();
+  drawSnake();
+}
+
+function drawBackground() {
+  if(IMG.bg) {
+    ctx.drawImage(IMG.bg, 0, 0, 640, 480);
+  } else {
+    // fallback: stone-grey grid
+    ctx.fillStyle="#1a1a1a"; ctx.fillRect(0,0,640,480);
+    ctx.strokeStyle="#222"; ctx.lineWidth=1;
+    for(let c=0;c<COLS;c++) for(let r=0;r<ROWS;r++) {
+      ctx.strokeRect(c*CELL, r*CELL, CELL, CELL);
+    }
+  }
+  // death shroud overlay
+  if(shroudTimer>0) {
+    ctx.fillStyle=`rgba(30,0,60,${0.35*(shroudTimer/8)})`;
+    ctx.fillRect(0,0,640,480);
+  }
+}
+
+// Sprite extraction helpers
+function snakeSprite(type) {
+  // sprite sheet 2x2: TL=head, TR=body-wide, BL=tail, BR=body-curve
+  const map = { head:[0,0], body:[1,0], tail:[0,1], curve:[1,1] };
+  const [sx,sy] = map[type] || [1,0];
+  return { img: IMG.snake, sx: sx*256, sy: sy*256, sw:256, sh:256 };
+}
+function villagerFrame(frame) {
+  // 4 frames in a row
+  return { img: IMG.villager, sx: frame*64, sy:0, sw:64, sh:64 };
+}
+function propSprite(type) {
+  const map = { cottage:0, well:1, cart:2, tent:3 };
+  const idx = map[type]||0;
+  return { img: IMG.props, sx: idx*128, sy:0, sw:128, sh:128 };
+}
+function spellOrbSprite(type) {
+  // bottom row of props sprite: 3 orbs
+  const map = { burst:0, rush:1, shroud:2 };
+  const idx = map[type]||0;
+  return { img: IMG.props, sx: idx*128, sy:128, sw:128, sh:128 };
+}
+
+function drawProps() {
+  props.list.forEach(p => {
+    const sp = propSprite(p.type);
+    if(sp.img) {
+      ctx.drawImage(sp.img, sp.sx, sp.sy, sp.sw, sp.sh, p.col*CELL-8, p.row*CELL-8, CELL+16, CELL+16);
+    } else {
+      ctx.fillStyle="#554422"; ctx.fillRect(p.col*CELL+2, p.row*CELL+2, CELL-4, CELL-4);
+    }
+  });
+}
+
+function drawVillagers() {
+  villagers.forEach(v => {
+    const fr = villagerFrame(v.frame);
+    if(fr.img) {
+      ctx.drawImage(fr.img, fr.sx, fr.sy, fr.sw, fr.sh, v.col*CELL, v.row*CELL, CELL, CELL);
+    } else {
+      // fallback tiny person
+      ctx.fillStyle="#c8884b";
+      ctx.fillRect(v.col*CELL+10, v.row*CELL+6, 12, 20);
+      ctx.fillStyle="#f0c080";
+      ctx.beginPath(); ctx.arc(v.col*CELL+16, v.row*CELL+6, 6, 0, Math.PI*2); ctx.fill();
+    }
+  });
+}
+
+function drawSnake() {
+  snake.forEach((seg, i) => {
+    const x = seg.col*CELL, y = seg.row*CELL;
+    if(IMG.snake) {
+      let type = "body";
+      if(i===0) type = "head";
+      else if(i===snake.length-1) type = "tail";
+      const sp = snakeSprite(type);
+      ctx.save();
+      ctx.translate(x+CELL/2, y+CELL/2);
+      // rotate based on direction
+      if(i===0) {
+        const angle = Math.atan2(dir.row, dir.col);
+        ctx.rotate(angle);
+      }
+      // shroud flicker
+      if(shroudTimer>0) ctx.globalAlpha = 0.5+0.5*Math.sin(Date.now()/80);
+      // white bg key: draw with destination-in to mask white
+      ctx.drawImage(sp.img, sp.sx, sp.sy, sp.sw, sp.sh, -CELL/2-2, -CELL/2-2, CELL+4, CELL+4);
+      ctx.globalAlpha=1;
+      ctx.restore();
+    } else {
+      // fallback procedural bone snake
+      const alpha = shroudTimer>0 ? (0.5+0.5*Math.sin(Date.now()/80)) : 1;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = i===0 ? "#e8d0a0" : (i%2===0 ? "#c4a87a" : "#a88c60");
+      const pad = i===0 ? 2 : 4;
+      ctx.fillRect(x+pad, y+pad, CELL-pad*2, CELL-pad*2);
+      if(i===0) {
+        // glowing eye
+        ctx.fillStyle="#ff3300"; ctx.shadowColor="#ff3300"; ctx.shadowBlur=8;
+        ctx.fillRect(x+CELL/2-8+dir.col*4, y+CELL/2-4+dir.row*4, 4, 4);
+        ctx.fillRect(x+CELL/2+4+dir.col*4, y+CELL/2-4+dir.row*4, 4, 4);
+        ctx.shadowBlur=0;
+      }
+      ctx.globalAlpha=1;
+    }
+  });
+}
+
+function drawSpellEffects() {
+  spellEffects.forEach(e => {
+    const x = e.col*CELL, y = e.row*CELL;
+    if(e.type==="burst") {
+      ctx.fillStyle=`rgba(255,120,30,${e.life/12})`;
+      ctx.shadowColor="#ff7020"; ctx.shadowBlur=20;
+      ctx.beginPath(); ctx.arc(x+CELL/2, y+CELL/2, (CELL/2)*(e.life/12)+4, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+    } else if(e.type==="eat") {
+      ctx.fillStyle=`rgba(200,168,75,${e.life/8})`;
+      ctx.font=`bold ${16+((8-e.life)*2)}px Courier New`;
+      ctx.textAlign="center";
+      ctx.fillText("+10", x+CELL/2, y+CELL/2 - (8-e.life)*2);
+    }
+  });
+}
+
+// ── END GAME ─────────────────────────────────────────────────────────────── 
+const DEATH_MSGS = [
+  "THE GRAVE RECLAIMS ITS OWN",
+  "SILENCE FALLS OVER THE RUINS",
+  "THE WYRM CRUMBLES TO DUST",
+  "ANOTHER SOUL FOR THE EARTH"
+];
+function endGame(reason) {
+  gameOver = true;
+  clearInterval(intervalId);
+  draw();
+  // Show overlay
+  const ov = document.getElementById("overlay");
+  ov.innerHTML = `
+    <div id="game-over-msg">GRAVE CRAWLER FALLS</div>
+    <div id="death-flavor">${reason}</div>
+    <div id="score-big">💀 ${score} SOULS</div>
+    <p>Length: ${snake.length} segments</p>
+    <button id="start-btn" style="margin-top:28px">RISE AGAIN</button>
+  `;
+  ov.classList.remove("overlay-hidden");
+  document.getElementById("start-btn").addEventListener("click", startGame);
+}
+
+// ── INPUT ────────────────────────────────────────────────────────────────── 
+const KEY_MAP = {
+  ArrowUp:{col:0,row:-1}, ArrowDown:{col:0,row:1}, ArrowLeft:{col:-1,row:0}, ArrowRight:{col:1,row:0},
+  w:{col:0,row:-1}, s:{col:0,row:1}, a:{col:-1,row:0}, d:{col:1,row:0},
+  W:{col:0,row:-1}, S:{col:0,row:1}, A:{col:-1,row:0}, D:{col:1,row:0},
+};
+document.addEventListener("keydown", e => {
+  if(KEY_MAP[e.key]) {
+    e.preventDefault();
+    const nd = KEY_MAP[e.key];
+    // prevent 180 reverse
+    if(nd.col !== -dir.col || nd.row !== -dir.row) nextDir = nd;
+  }
+  if(e.key==="1") { e.preventDefault(); castSpell(0); }
+  if(e.key==="2") { e.preventDefault(); castSpell(1); }
+  if(e.key==="3") { e.preventDefault(); castSpell(2); }
+});
+
+// ── START ─────────────────────────────────────────────────────────────────
+function startGame() {
+  document.getElementById("overlay").classList.add("overlay-hidden");
+  initGame();
+  clearInterval(intervalId);
+  intervalId = setInterval(tick, BASE_INTERVAL);
+  draw();
+}
+
+// ── BOOT ─────────────────────────────────────────────────────────────────── 
+Promise.all([
+  loadImg("bg",      "assets/bg.jpg"),
+  loadImg("snake",   "assets/snake.jpg"),
+  loadImg("villager","assets/villager.jpg"),
+  loadImg("props",   "assets/props.jpg"),
+]).then(() => {
+  initGame();
+  draw(); // preview behind overlay
+  document.getElementById("start-btn").addEventListener("click", startGame);
+}).catch(()=>{
+  // assets failed — run in fallback mode
+  initGame();
+  draw();
+  document.getElementById("start-btn").addEventListener("click", startGame);
+});
+</script>
+</body>
+</html>
