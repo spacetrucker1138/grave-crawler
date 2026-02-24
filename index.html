@@ -153,6 +153,15 @@ function drawVillagerSprite(frame, x, y) {
   );
 }
 
+// Knight sheet: 256x64, 4 frames at 64x64
+function drawKnightSprite(frame, x, y) {
+  ctx.drawImage(
+    IMG.knight,
+    frame * 64, 0, 64, 64,
+    x - 4, y - Math.round(CELL * 0.5), CELL + 8, Math.round(CELL * 1.5)
+  );
+}
+
 // Props sheet: 512x512
 // Top row: 4 props at 128x128 (cottage=0, well=1, cart=2, tent=3)
 // Bottom row: 3 spell orbs at 128x128 (burst=0, rush=1, shroud=2) — not used as pickups in this version
@@ -170,6 +179,9 @@ function drawPropSprite(type, x, y) {
 // ── GAME STATE ───────────────────────────────────────────────────────────
 let snake, dir, nextDir, score, gameOver, intervalId, spellFx, villagers, propList;
 let rushTimer = 0, shroudTimer = 0;
+let greenKnight = null;        // active knight NPC or null
+let knightAnnounce = 0;        // countdown for announcement banner (frames)
+let applesSinceKnight = 0;     // track apples eaten since last knight spawn
 
 // ── PROPS ─────────────────────────────────────────────────────────────── 
 function buildProps() {
@@ -215,7 +227,7 @@ function tickVillagers() {
   const head     = snake[0];
   villagers.forEach(v => {
     v.frameTimer++;
-    if(v.frameTimer >= 8) { v.frame = (v.frame+1)%4; v.frameTimer=0; }
+    if(v.frameTimer >= 4) { v.frame = (v.frame+1)%4; v.frameTimer=0; }
     if(!v.wanders) return;
     if(--v.wanderTimer > 0) return;
     v.wanderTimer = 4 + Math.floor(Math.random()*8);
@@ -234,9 +246,74 @@ function tickVillagers() {
     const d = Math.random()<0.65 ? valid[0] : valid[Math.floor(Math.random()*valid.length)];
     v.col += d[0]; v.row += d[1];
   });
+
+  // Green Knight update
+  if(greenKnight) {
+    const k = greenKnight;
+    k.frameTimer++;
+    if(k.frameTimer >= 3) { k.frame = (k.frame+1)%4; k.frameTimer=0; }
+    if(--k.moveTimer <= 0) {
+      k.moveTimer = 3; // knight moves faster than villagers
+      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      const valid = dirs.filter(d => {
+        const nc = k.col+d[0], nr = k.row+d[1];
+        return nc>=0&&nc<COLS&&nr>=0&&nr<ROWS&&!snakeSet.has(`${nc},${nr}`)&&!propSet.has(`${nc},${nr}`);
+      });
+      if(valid.length) {
+        // Knight wanders — slight bias away from snake for dramatic effect
+        valid.sort((a,b)=>{
+          const da=(k.col+a[0]-head.col)**2+(k.row+a[1]-head.row)**2;
+          const db=(k.col+b[0]-head.col)**2+(k.row+b[1]-head.row)**2;
+          return db-da;
+        });
+        const d = Math.random()<0.5 ? valid[0] : valid[Math.floor(Math.random()*valid.length)];
+        k.col += d[0]; k.row += d[1];
+      }
+      // Knight eaten by snake?
+      if(k.col===newHead.col && k.row===newHead.row) {
+        score += 50;
+        spellFx.push({type:"eat", col:k.col, row:k.row, life:10});
+        greenKnight = null;
+        updateHUD();
+      }
+    }
+    if(knightAnnounce > 0) knightAnnounce--;
+  }
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────
+// ── GREEN KNIGHT ─────────────────────────────────────────────────────────
+function spawnGreenKnight() {
+  // Spawn on a random edge
+  const edge = Math.floor(Math.random()*4);
+  let col, row;
+  if(edge===0) { col=Math.floor(Math.random()*COLS); row=0; }
+  else if(edge===1) { col=Math.floor(Math.random()*COLS); row=ROWS-1; }
+  else if(edge===2) { col=0; row=Math.floor(Math.random()*ROWS); }
+  else              { col=COLS-1; row=Math.floor(Math.random()*ROWS); }
+  greenKnight = { col, row, frame:0, frameTimer:0, moveTimer:3 };
+  knightAnnounce = 180; // show banner for ~3 seconds (60fps)
+  // Fanfare: short procedural ta-da
+  playKnightFanfare();
+}
+
+function playKnightFanfare() {
+  try {
+    const ac = new (window.AudioContext||window.webkitAudioContext)();
+    [[523,0],[659,0.15],[784,0.3],[1047,0.45]].forEach(([freq,t]) => {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = "square";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.18, ac.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+t+0.18);
+      o.start(ac.currentTime+t);
+      o.stop(ac.currentTime+t+0.2);
+    });
+  } catch(e) {}
+}
+
 function initGame() {
   const startCol = Math.floor(COLS/2);
   const startRow = Math.floor(ROWS/2);
@@ -248,6 +325,7 @@ function initGame() {
   spellFx  = [];
   propList = buildProps();
   villagers = buildVillagers(propList.avoid);
+  greenKnight = null; knightAnnounce = 0; applesSinceKnight = 0;
   updateHUD();
 }
 
@@ -279,6 +357,12 @@ function tick() {
     const v = villagers[i];
     if(v.col===newHead.col && v.row===newHead.row) {
       score += 10; ate = true;
+      applesSinceKnight++;
+      // Spawn Green Knight after 5-10 apples, if not already present
+      if(!greenKnight && applesSinceKnight >= 5 + Math.floor(Math.random()*6)) {
+        spawnGreenKnight();
+        applesSinceKnight = 0;
+      }
       spellFx.push({type:"eat", col:v.col, row:v.row, life:10});
       // Respawn
       villagers[i] = makeVillager(propList.avoid, new Set(snake.map(s=>`${s.col},${s.row}`)));
@@ -394,6 +478,35 @@ function draw() {
       ctx.beginPath(); ctx.arc(x+16,y+6,5,0,Math.PI*2); ctx.fill();
     }
   });
+
+  // Green Knight
+  if(greenKnight) {
+    const x = greenKnight.col*CELL, y = greenKnight.row*CELL;
+    if(IMG.knight) {
+      drawKnightSprite(greenKnight.frame, x, y);
+    } else {
+      ctx.fillStyle="#22bb22";
+      ctx.fillRect(x+8, y+4, CELL-16, CELL-8);
+    }
+  }
+
+  // Green Knight announcement banner
+  if(knightAnnounce > 0) {
+    const alpha = Math.min(1, knightAnnounce/20) * Math.min(1, (knightAnnounce)/20);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, knightAnnounce/20);
+    ctx.fillStyle = "rgba(10,40,10,0.82)";
+    ctx.fillRect(W/2 - 240, H/2 - 36, 480, 64);
+    ctx.strokeStyle = "#44ff44";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(W/2 - 240, H/2 - 36, 480, 64);
+    ctx.fillStyle = "#44ff44";
+    ctx.font = "bold 22px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#44ff44"; ctx.shadowBlur = 14;
+    ctx.fillText("⚔  THE GREEN KNIGHT APPROACHES  ⚔", W/2, H/2 + 8);
+    ctx.restore();
+  }
 
   // Spell FX
   spellFx.forEach(e => {
@@ -534,6 +647,7 @@ Promise.all([
   loadImg("snake",   "assets/snake.png"),
   loadImg("villager","assets/villager.png"),
   loadImg("props",   "assets/props.png"),
+  loadImg("knight",  "assets/knight.png"),
 ]).then(() => {
   initGame(); draw();
   document.getElementById("start-btn").addEventListener("click", startGame);
