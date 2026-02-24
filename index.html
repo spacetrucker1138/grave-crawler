@@ -292,7 +292,7 @@ function spawnGreenKnight() {
   else if(edge===2) { col=0; row=Math.floor(Math.random()*ROWS); }
   else              { col=COLS-1; row=Math.floor(Math.random()*ROWS); }
   greenKnight = { col, row, frame:0, frameTimer:0, moveTimer:3 };
-  knightAnnounce = 180; // show banner for ~3 seconds (60fps)
+  knightAnnounce = 90; // show banner for ~1.5 seconds (60fps)
   // Fanfare: short procedural ta-da
   playKnightFanfare();
 }
@@ -356,7 +356,7 @@ function tick() {
       score += 10; ate = true;
       applesSinceKnight++;
       // Spawn Green Knight after 5-10 apples, if not already present
-      if(!greenKnight && applesSinceKnight >= 5 + Math.floor(Math.random()*6)) {
+      if(!greenKnight && applesSinceKnight >= 12 + Math.floor(Math.random()*7)) {
         spawnGreenKnight();
         applesSinceKnight = 0;
       }
