@@ -655,6 +655,28 @@ Promise.all([
   loadImg("props",   "assets/props.png"),
   loadImg("knight",  "assets/knight.png"),
 ]).then(() => {
+  // Runtime magenta-kill: nuke any pixel where R > G+55 && B > G+55
+  // Catches JPEG-compressed fringe that survives PNG alpha keying
+  function killMagenta(imgEl) {
+    if (!imgEl) return imgEl;
+    const oc = document.createElement('canvas');
+    oc.width = imgEl.naturalWidth; oc.height = imgEl.naturalHeight;
+    const ox = oc.getContext('2d');
+    ox.drawImage(imgEl, 0, 0);
+    const id = ox.getImageData(0, 0, oc.width, oc.height);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i+1], b = d[i+2];
+      if (r - g > 55 && b - g > 55) { d[i+3] = 0; }
+      else if (r - g > 25 && b - g > 25) {
+        const s = Math.min((r-g-25)/30, (b-g-25)/30, 1);
+        d[i+3] = Math.round(d[i+3] * (1 - s));
+      }
+    }
+    ox.putImageData(id, 0, 0);
+    return oc;
+  }
+  IMG.knight = killMagenta(IMG.knight);
   initGame(); draw();
   document.getElementById("start-btn").addEventListener("click", startGame);
 }).catch(() => {
