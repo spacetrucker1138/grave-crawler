@@ -85,7 +85,7 @@
   <h2>ARISE. DEVOUR. GROW.</h2>
   <p>Arrow keys / WASD — Slither</p>
   <p>1 — 💥 Bone Burst (costs 3 segments — clears path ahead)</p>
-  <p>2 — ⚡ Spectral Rush (costs 2 segments — speed surge)</p>
+  <p>2 — 🟢 Slime Trail (costs 2 segments — leaves toxic slime for 3s, fades in 10s)</p>
   <p>3 — 🌑 Death Shroud (costs 4 segments — brief invincibility)</p>
   <p class="spell-hint">Spells consume your body — do not cast when small!</p>
   <button id="start-btn">CRAWL FORTH</button>
@@ -105,7 +105,7 @@ const BASE_INTERVAL = 155;
 
 const SPELLS = [
   { name:"BONE BURST",    cost:3, emoji:"💥" },
-  { name:"SPECTRAL RUSH", cost:2, emoji:"⚡" },
+  { name:"SLIME TRAIL",   cost:2, emoji:"🟢" },
   { name:"DEATH SHROUD",  cost:4, emoji:"🌑" },
 ];
 
@@ -179,7 +179,8 @@ function drawPropSprite(type, x, y) {
 
 // ── GAME STATE ───────────────────────────────────────────────────────────
 let snake, dir, nextDir, score, gameOver, intervalId, spellFx, villagers, propList;
-let rushTimer = 0, shroudTimer = 0;
+let shroudTimer = 0, slimeActive = 0; // slimeActive counts down ticks while laying slime
+let slimeTiles = []; // [{col,row,life,maxLife}] — slime trail tiles
 let greenKnight = null;        // active knight NPC or null
 let knightAnnounce = 0;        // countdown for announcement banner (frames)
 let applesSinceKnight = 0;     // track apples eaten since last knight spawn
@@ -328,7 +329,7 @@ function initGame() {
   dir     = {col:1,row:0};
   nextDir = {col:1,row:0};
   score   = 0; gameOver = false;
-  rushTimer = 0; shroudTimer = 0;
+  shroudTimer = 0; slimeActive = 0; slimeTiles = [];
   spellFx  = [];
   propList = buildProps();
   villagers = buildVillagers(propList.avoid);
@@ -377,14 +378,29 @@ function tick() {
 
   tickVillagers();
 
-  if(rushTimer>0)  rushTimer--;
   if(shroudTimer>0) shroudTimer--;
+  slimeTiles = slimeTiles.filter(t => { t.life--; return t.life > 0; });
   spellFx = spellFx.filter(e=>{ e.life--; return e.life>0; });
 
-  const interval = rushTimer>0 ? BASE_INTERVAL*0.4 : BASE_INTERVAL;
   clearInterval(intervalId);
-  intervalId = setInterval(tick, interval);
+  intervalId = setInterval(tick, BASE_INTERVAL);
 
+  // Slime trail: if slimeActive, stamp current snake positions as fresh slime
+  if(slimeActive > 0) {
+    slimeActive--;
+    snake.forEach(seg => {
+      // avoid duplicate tile at same cell
+      if(!slimeTiles.find(t => t.col===seg.col && t.row===seg.row)) {
+        slimeTiles.push({ col:seg.col, row:seg.row, life:650, maxLife:650 }); // ~10s at 155ms
+      }
+    });
+  }
+  // Villagers on slime get briefly frozen
+  villagers.forEach(v => {
+    if(slimeTiles.find(t => t.col===v.col && t.row===v.row)) {
+      v.frozen = Math.max(v.frozen||0, 6); // freeze for ~1s
+    }
+  });
   updateHUD();
   draw();
 }
@@ -409,8 +425,8 @@ function castSpell(idx) {
     }
     showEffect("💥 BONE BURST!", 1800);
   } else if(idx===1) {
-    rushTimer=12;
-    showEffect("⚡ SPECTRAL RUSH!", 1800);
+    slimeActive = 20; // ~3 seconds at 155ms per tick
+    showEffect("🟢 SLIME TRAIL!", 1800);
   } else if(idx===2) {
     shroudTimer=10;
     showEffect("🌑 DEATH SHROUD!", 1800);
@@ -433,7 +449,7 @@ function updateHUD() {
     const el = document.getElementById("slot-"+i);
     const ready = snake.length > sp.cost + 2;
     el.className = "spell-slot " + (ready ? "ready" : "not-ready");
-    if(i===1&&rushTimer>0)   el.classList.add("active");
+    if(i===1&&slimeActive>0) el.classList.add("active");
     if(i===2&&shroudTimer>0) el.classList.add("active");
   });
 }
@@ -515,6 +531,28 @@ function draw() {
   }
 
   // Spell FX
+  // Draw slime tiles (render under spellFx, above background)
+  slimeTiles.forEach(t => {
+    const alpha = (t.life / t.maxLife) * 0.65; // fade from 65% to 0
+    const x = t.col * CELL, y = t.row * CELL;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // Slime puddle: dark yellow-green blob
+    ctx.fillStyle = '#5aaf1a';
+    ctx.shadowColor = '#7fff00'; ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.ellipse(x + CELL*0.5, y + CELL*0.55, CELL*0.42, CELL*0.32, 0, 0, Math.PI*2);
+    ctx.fill();
+    // Inner highlight
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.fillStyle = '#a8ff3e';
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.ellipse(x + CELL*0.45, y + CELL*0.48, CELL*0.18, CELL*0.12, -0.3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  });
+
   spellFx.forEach(e => {
     const x=e.col*CELL, y=e.row*CELL;
     if(e.type==="burst") {
