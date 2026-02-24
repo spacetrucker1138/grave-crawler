@@ -85,7 +85,7 @@
   <h2>ARISE. DEVOUR. GROW.</h2>
   <p>Arrow keys / WASD — Slither</p>
   <p>1 — 💥 Bone Burst (costs 3 segments — clears path ahead)</p>
-  <p>2 — 🟢 Slime Trail (costs 2 segments — leaves toxic slime for 3s, fades in 10s)</p>
+  <p>2 — 🟢 Slime Trail (costs 2 segments — leaves toxic slime, fades in 3s)</p>
   <p>3 — 🌑 Death Shroud (costs 4 segments — brief invincibility)</p>
   <p class="spell-hint">Spells consume your body — do not cast when small!</p>
   <button id="start-btn">CRAWL FORTH</button>
@@ -391,7 +391,7 @@ function tick() {
     snake.forEach(seg => {
       // avoid duplicate tile at same cell
       if(!slimeTiles.find(t => t.col===seg.col && t.row===seg.row)) {
-        slimeTiles.push({ col:seg.col, row:seg.row, life:650, maxLife:650 }); // ~10s at 155ms
+        slimeTiles.push({ col:seg.col, row:seg.row, life:19, maxLife:19 }); // ~3s at 155ms
       }
     });
   }
