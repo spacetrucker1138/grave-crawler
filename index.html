@@ -109,6 +109,85 @@ ctx.imageSmoothingEnabled = false;
 
 // ── IMAGE LOADING ─────────────────────────────────────────────────────── 
 const IMG = {};
+
+// ── AUDIO ────────────────────────────────────────────────────────────────
+const SFX = {};
+let bgMusic = null;
+let audioUnlocked = false;
+
+async function loadAudioChunked(key, basePath, numParts) {
+  try {
+    const buffers = await Promise.all(
+      Array.from({length: numParts}, (_, i) =>
+        fetch(`${basePath}.part${i+1}`).then(r => r.arrayBuffer())
+      )
+    );
+    const total = buffers.reduce((n, b) => n + b.byteLength, 0);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const buf of buffers) { merged.set(new Uint8Array(buf), offset); offset += buf.byteLength; }
+    const actx = new (window.AudioContext || window.webkitAudioContext)();
+    SFX[key] = await actx.decodeAudioData(merged.buffer);
+    SFX[key + '_ctx'] = actx;
+  } catch(e) { console.warn('Audio load fail:', key, e); }
+}
+
+async function loadAudio(key, src) {
+  try {
+    const buf = await fetch(src).then(r => r.arrayBuffer());
+    const actx = new (window.AudioContext || window.webkitAudioContext)();
+    SFX[key] = await actx.decodeAudioData(buf);
+    SFX[key + '_ctx'] = actx;
+  } catch(e) { console.warn('Audio load fail:', key, e); }
+}
+
+function playSound(key, opts={}) {
+  const buf = SFX[key];
+  const actx = SFX[key + '_ctx'];
+  if(!buf || !actx) return;
+  try {
+    if(actx.state === 'suspended') actx.resume();
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    if(opts.loop) src.loop = true;
+    const gain = actx.createGain();
+    gain.gain.value = opts.volume !== undefined ? opts.volume : 1.0;
+    src.connect(gain);
+    gain.connect(actx.destination);
+    src.start(0);
+    return { src, gain, actx };
+  } catch(e) {}
+}
+
+function stopBgMusic() {
+  if(bgMusic) { try { bgMusic.src.stop(); } catch(e){} bgMusic = null; }
+}
+
+function startBgMusic() {
+  stopBgMusic();
+  bgMusic = playSound('music', { loop: true, volume: 0.45 });
+}
+
+// Unlock audio on first user gesture
+function unlockAudio() {
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  Object.keys(SFX).filter(k => k.endsWith('_ctx')).forEach(k => {
+    try { SFX[k].resume(); } catch(e){}
+  });
+}
+document.addEventListener('click', unlockAudio, { once: false });
+document.addEventListener('keydown', unlockAudio, { once: false });
+
+// Preload all audio
+Promise.all([
+  loadAudioChunked('music', 'assets/audio/medievaldeadsong', 6),
+  loadAudio('knighthorn', 'assets/audio/knightintrohorn.mp3'),
+  loadAudio('knightdeath', 'assets/audio/knightscreamdeath.mp3'),
+  loadAudio('snakedeath', 'assets/audio/snakedeath.mp3'),
+  loadAudio('villagedeath', 'assets/audio/villagedeath.mp3'),
+]).then(() => console.log('Audio ready'));
+
 function loadImg(key, src) {
   return new Promise(res => {
     const i = new Image();
@@ -303,6 +382,7 @@ function tickVillagers() {
     if(k.col===snake[0].col && k.row===snake[0].row) {
       score += 50;
       spellFx.push({type:"eat", col:k.col, row:k.row, life:10, pts:50});
+      playSound('knightdeath', { volume: 0.85 });
       greenKnight = null;
       updateHUD();
     } else {
@@ -337,6 +417,7 @@ function tickVillagers() {
 // ── INIT ─────────────────────────────────────────────────────────────────
 // ── GREEN KNIGHT ─────────────────────────────────────────────────────────
 function spawnGreenKnight() {
+  playSound('knighthorn', { volume: 0.8 });
   // Spawn on a random edge
   const edge = Math.floor(Math.random()*4);
   let col, row;
@@ -414,6 +495,7 @@ function tick() {
         applesSinceKnight = 0;
       }
       spellFx.push({type:"eat", col:v.col, row:v.row, life:10, pts:10});
+      playSound('villagedeath', { volume: 0.6 });
       // Blood splat at eat location — fades over 3s (~19 ticks at 155ms)
       spellFx.push({type:"blood", col:v.col, row:v.row, life:19, maxLife:19,
         offsets: Array.from({length:6}, () => ({
@@ -712,6 +794,8 @@ const DEATHS = [
 function endGame(reason) {
   gameOver = true;
   clearInterval(intervalId);
+  stopBgMusic();
+  playSound('snakedeath', { volume: 0.9 });
   // Save local high score
   if(score > highScore) {
     highScore = score;
@@ -834,7 +918,7 @@ async function showTitleScreen() {
           <div style="font-size:10px;color:#88aa88;margin-bottom:8px;letter-spacing:1px;">Spells consume your body — do not cast when small!</div>
           <div style="font-size:11px;color:#ffd700;letter-spacing:2px;">🏆 BEST: ${highScore}</div>
         </div>
-        <button id="start-btn" style="font-size:17px;padding:12px 36px;letter-spacing:4px;margin-bottom:14px;">CRAWL FORTH</button>
+        <div style="background:rgba(0,0,0,0.65);border:1px solid rgba(200,168,75,0.3);border-radius:6px;padding:14px 24px;margin-bottom:14px;"><button id="start-btn" style="font-size:17px;padding:12px 36px;letter-spacing:4px;">CRAWL FORTH</button></div>
         <!-- Leaderboard sheet -->
         <div style="background:rgba(0,0,0,0.65);border:1px solid #2a2a3a;border-radius:6px;padding:10px 16px;width:300px;text-align:center;">
           <div style="font-size:10px;letter-spacing:3px;color:#888;margin-bottom:8px;">— HALL OF THE DEAD —</div>
@@ -845,6 +929,7 @@ async function showTitleScreen() {
   `;
   ov.style.padding = "0";
   ov.classList.remove("overlay-hidden");
+  stopBgMusic(); // music restarts on CRAWL FORTH click
   document.getElementById("start-btn").addEventListener("click", () => {
     ov.style.padding = "";
     startGame();
@@ -859,6 +944,8 @@ async function showTitleScreen() {
 }
 
 function startGame() {
+  unlockAudio();
+  startBgMusic();
   document.getElementById("overlay").classList.add("overlay-hidden");
   initGame();
   clearInterval(intervalId);
