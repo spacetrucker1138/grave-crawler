@@ -285,8 +285,8 @@ async function submitScore(initials, pts) {
 }
 
 function renderLeaderboard(rows) {
-  if(!rows || rows.length === 0) return '<div style="color:#444;font-size:11px;letter-spacing:2px;font-family:'Courier New',monospace;">NO SCORES YET — BE THE FIRST</div>';
-  return '<table style="border-collapse:collapse;width:100%;font-size:12px;letter-spacing:1px;font-family:'Courier New',monospace;">'
+  if(!rows || rows.length === 0) return '<div style="color:#444;font-size:11px;letter-spacing:2px;font-family:monospace;">NO SCORES YET — BE THE FIRST</div>';
+  return '<table style="border-collapse:collapse;width:100%;font-size:12px;letter-spacing:1px;font-family:monospace;">'
     + '<tr><th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">RANK</th>'
     + '<th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">NAME</th>'
     + '<th style="color:#444;padding:2px 8px;text-align:right;font-weight:normal;letter-spacing:2px;">SCORE</th></tr>'
