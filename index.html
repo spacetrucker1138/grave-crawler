@@ -175,15 +175,15 @@ let snake, dir, nextDir, score, gameOver, intervalId, spellFx, villagers, propLi
 let highScore = parseInt(localStorage.getItem("gc_high_score") || "0");
 
 // ── GLOBAL LEADERBOARD (Firebase RTDB REST) ──────────────────────────────
-const FB_URL = "https://grave-crawler-default-rtdb.firebaseio.com/leaderboard";
+const FB_URL = "https://pitstop-wall-default-rtdb.firebaseio.com/highscores/grave-crawler";
 
 async function fetchLeaderboard() {
   try {
-    const r = await fetch(FB_URL + ".json?orderBy=\"score\"&limitToLast=10");
+    const r = await fetch(FB_URL + ".json");
     if(!r.ok) return [];
     const data = await r.json();
     if(!data) return [];
-    // Convert object map → array, sort descending
+    // Sort client-side (no DB index needed), top 10
     return Object.values(data)
       .sort((a,b) => b.score - a.score)
       .slice(0, 10);
