@@ -159,10 +159,11 @@ function drawVillagerSprite(frame, x, y) {
 const PROP_MAP   = { cottage:0, well:1, cart:2, tent:3 };
 function drawPropSprite(type, x, y) {
   const idx = PROP_MAP[type] ?? 0;
-  ctx.drawImage(
+  // props.png: 512×128, 4 sprites of 128×128 in a horizontal row
+    ctx.drawImage(
     IMG.props,
     idx * 128, 0, 128, 128,
-    x - 8, y - 8, CELL + 16, CELL + 16
+    x - 4, y - 4, CELL + 8, CELL + 8
   );
 }
 
