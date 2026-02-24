@@ -173,6 +173,57 @@ function drawPropSprite(type, x, y) {
 // ── GAME STATE ───────────────────────────────────────────────────────────
 let snake, dir, nextDir, score, gameOver, intervalId, spellFx, villagers, propList;
 let highScore = parseInt(localStorage.getItem("gc_high_score") || "0");
+
+// ── GLOBAL LEADERBOARD (Firebase RTDB REST) ──────────────────────────────
+const FB_URL = "https://grave-crawler-default-rtdb.firebaseio.com/leaderboard";
+
+async function fetchLeaderboard() {
+  try {
+    const r = await fetch(FB_URL + ".json?orderBy=\"score\"&limitToLast=10");
+    if(!r.ok) return [];
+    const data = await r.json();
+    if(!data) return [];
+    // Convert object map → array, sort descending
+    return Object.values(data)
+      .sort((a,b) => b.score - a.score)
+      .slice(0, 10);
+  } catch(e) { return []; }
+}
+
+async function submitScore(initials, pts) {
+  try {
+    await fetch(FB_URL + ".json", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        initials: initials.toUpperCase().slice(0,3),
+        score: pts,
+        ts: Date.now()
+      })
+    });
+  } catch(e) { /* silent fail */ }
+}
+
+function renderLeaderboard(rows) {
+  if(!rows || rows.length === 0) return '<div style="color:#556;font-size:11px;letter-spacing:2px;">NO SCORES YET — BE THE FIRST</div>';
+  return '<table style="border-collapse:collapse;width:100%;font-size:12px;letter-spacing:1px;">'
+    + '<tr><th style="color:#556;padding:2px 8px;text-align:left;">RANK</th>'
+    + '<th style="color:#556;padding:2px 8px;text-align:left;">NAME</th>'
+    + '<th style="color:#556;padding:2px 8px;text-align:right;">SCORE</th></tr>'
+    + rows.map((r,i) => {
+        const isTop = i === 0;
+        const col = isTop ? "#ffd700" : (i < 3 ? "#c8a84b" : "#888");
+        return `<tr>
+          <td style="color:${col};padding:2px 8px;">#${i+1}</td>
+          <td style="color:${col};padding:2px 8px;">${r.initials||"????"}</td>
+          <td style="color:${col};padding:2px 8px;text-align:right;">💀 ${r.score}</td>
+        </tr>`;
+      }).join("")
+    + "</table>";
+}
+
+let pendingScore = 0; // score waiting for initials entry
+
 let shroudTimer = 0, slimeActive = 0; // slimeActive counts down ticks while laying slime
 let slimeTiles = []; // [{col,row,life,maxLife}] — slime trail tiles
 let greenKnight = null;        // active knight NPC or null
@@ -363,6 +414,14 @@ function tick() {
         applesSinceKnight = 0;
       }
       spellFx.push({type:"eat", col:v.col, row:v.row, life:10, pts:10});
+      // Blood splat at eat location — fades over 3s (~19 ticks at 155ms)
+      spellFx.push({type:"blood", col:v.col, row:v.row, life:19, maxLife:19,
+        offsets: Array.from({length:6}, () => ({
+          dx: (Math.random()-0.5)*CELL*1.1,
+          dy: (Math.random()-0.5)*CELL*1.1,
+          r:  3 + Math.random()*5
+        }))
+      });
       // Respawn
       villagers[i] = makeVillager(propList.avoid, new Set(snake.map(s=>`${s.col},${s.row}`)));
       break;
@@ -550,7 +609,20 @@ function draw() {
 
   spellFx.forEach(e => {
     const x=e.col*CELL, y=e.row*CELL;
-    if(e.type==="burst") {
+    if(e.type==="blood") {
+      const t = e.life / e.maxLife;
+      ctx.save();
+      ctx.globalAlpha = t * 0.75;
+      ctx.fillStyle = "#8b0000";
+      const cx = e.col * CELL + CELL / 2;
+      const cy = e.row * CELL + CELL / 2;
+      e.offsets.forEach(o => {
+        ctx.beginPath();
+        ctx.arc(cx + o.dx, cy + o.dy, o.r * (0.5 + 0.5 * t), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    } else if(e.type==="burst") {
       const t=e.life/14;
       ctx.save();
       ctx.globalAlpha=t;
@@ -640,27 +712,86 @@ const DEATHS = [
 function endGame(reason) {
   gameOver = true;
   clearInterval(intervalId);
-  // Save high score
+  // Save local high score
   if(score > highScore) {
     highScore = score;
     localStorage.setItem("gc_high_score", highScore);
   }
   draw();
+  pendingScore = score;
+  showInitialsEntry(reason, score >= highScore && score > 0);
+}
+
+async function showInitialsEntry(reason, isNew) {
+  const finalScore = pendingScore;
   const ov = document.getElementById("overlay");
-  const isNew = score >= highScore && score > 0;
   ov.innerHTML = `
     <div id="game-over-msg">THE CRAWLER FALLS</div>
     <div id="death-flavor">${reason}</div>
-    <div id="score-big">💀 ${score}</div>
+    <div id="score-big">💀 ${finalScore}</div>
     ${isNew ? '<div style="color:#ffd700;font-size:14px;letter-spacing:3px;margin-bottom:8px;">✦ NEW HIGH SCORE ✦</div>' : ''}
-    <div style="color:#888;font-size:13px;margin-bottom:20px;">BEST: ${highScore}</div>
-    <p style="margin-bottom:24px;">Length reached: ${snake.length} segments</p>
-    <div style="display:flex;gap:16px;justify-content:center;">
+    <div style="color:#888;font-size:13px;margin-bottom:14px;">BEST: ${highScore}</div>
+    <div style="margin-bottom:18px;">
+      <div style="font-size:11px;letter-spacing:3px;color:#aaa;margin-bottom:8px;">ENTER YOUR INITIALS</div>
+      <input id="initials-input" maxlength="3" placeholder="AAA"
+        style="background:#0a0a0a;border:2px solid #c8a84b;color:#c8a84b;
+               font-family:'Courier New',monospace;font-size:28px;letter-spacing:10px;
+               text-align:center;width:120px;padding:6px;text-transform:uppercase;
+               outline:none;" />
+    </div>
+    <div id="lb-submitting" style="font-size:11px;color:#556;letter-spacing:2px;min-height:16px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:16px;justify-content:center;margin-bottom:20px;">
+      <button id="submit-score-btn">CARVE YOUR NAME</button>
+      <button id="skip-score-btn" style="background:#1a1a2e;border:2px solid #556;font-size:11px;">SKIP</button>
+    </div>
+    <div id="lb-container" style="min-height:80px;"></div>
+    <div style="display:flex;gap:16px;justify-content:center;margin-top:18px;">
       <button id="replay-btn">RISE AGAIN</button>
       <button id="title-btn" style="background:#1a1a2e;border:2px solid #556;">◀ TITLE</button>
     </div>
   `;
   ov.classList.remove("overlay-hidden");
+
+  // Auto-uppercase input
+  const inp = document.getElementById("initials-input");
+  inp.addEventListener("input", () => { inp.value = inp.value.toUpperCase(); });
+  inp.focus();
+
+  // Load leaderboard in background
+  const lbContainer = document.getElementById("lb-container");
+  lbContainer.innerHTML = '<div style="color:#556;font-size:10px;letter-spacing:2px;">LOADING HALL OF THE DEAD...</div>';
+  const rows = await fetchLeaderboard();
+  lbContainer.innerHTML = renderLeaderboard(rows);
+
+  async function doSubmit() {
+    const initials = inp.value.trim().padEnd(3,"?").slice(0,3).toUpperCase();
+    const btn = document.getElementById("submit-score-btn");
+    const status = document.getElementById("lb-submitting");
+    if(btn) btn.disabled = true;
+    if(status) status.textContent = "INSCRIBING...";
+    await submitScore(initials, finalScore);
+    // Refresh leaderboard
+    const updated = await fetchLeaderboard();
+    const lb2 = document.getElementById("lb-container");
+    if(lb2) lb2.innerHTML = renderLeaderboard(updated);
+    if(status) status.textContent = "INSCRIBED IN THE BONES ✦";
+    if(btn) btn.style.display = "none";
+    const skipBtn = document.getElementById("skip-score-btn");
+    if(skipBtn) skipBtn.style.display = "none";
+  }
+
+  document.getElementById("submit-score-btn").addEventListener("click", doSubmit);
+  document.getElementById("skip-score-btn").addEventListener("click", async () => {
+    document.getElementById("skip-score-btn").style.display="none";
+    document.getElementById("submit-score-btn").style.display="none";
+    const rows2 = await fetchLeaderboard();
+    const lb2 = document.getElementById("lb-container");
+    if(lb2) lb2.innerHTML = renderLeaderboard(rows2);
+  });
+
+  // Enter key submits
+  inp.addEventListener("keydown", e => { if(e.key==="Enter") doSubmit(); });
+
   document.getElementById("replay-btn").addEventListener("click", startGame);
   document.getElementById("title-btn").addEventListener("click", showTitleScreen);
 }
@@ -684,21 +815,25 @@ document.addEventListener("keydown", e => {
 });
 
 // ── START ─────────────────────────────────────────────────────────────── 
-function showTitleScreen() {
+async function showTitleScreen() {
   clearInterval(intervalId);
   gameOver = true;
   const ov = document.getElementById("overlay");
   ov.innerHTML = `
     <div style="position:relative;width:100%;height:100%;overflow:hidden;">
       ${IMG.title ? '<img src="' + IMG.title.src + '" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0.55;">' : ''}
-      <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:0;">
-        <h1 style="font-size:clamp(32px,6vw,56px);letter-spacing:8px;text-shadow:0 0 32px #33ff66,0 0 8px #000;margin-bottom:6px;">GRAVE CRAWLER</h1>
-        <h2 style="font-size:14px;letter-spacing:4px;color:#aaddaa;margin-bottom:18px;">ARISE. DEVOUR. GROW.</h2>
-        <div style="font-size:12px;color:#99aa99;margin-bottom:4px;letter-spacing:2px;">Arrow keys / WASD — Slither</div>
-        <div style="font-size:12px;color:#99aa99;margin-bottom:4px;">1 — 💥 Bone Burst &nbsp; 2 — 🟢 Slime Trail &nbsp; 3 — 🌑 Death Shroud</div>
-        <div style="font-size:11px;color:#556655;margin-bottom:20px;letter-spacing:1px;">Spells consume your body — do not cast when small!</div>
-        <div style="font-size:12px;color:#ffd700;margin-bottom:24px;letter-spacing:2px;">🏆 BEST: ${highScore}</div>
-        <button id="start-btn" style="font-size:18px;padding:14px 40px;letter-spacing:4px;">CRAWL FORTH</button>
+      <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:0;overflow-y:auto;padding:16px 0;">
+        <h1 style="font-size:clamp(28px,5vw,52px);letter-spacing:8px;text-shadow:0 0 32px #33ff66,0 0 8px #000;margin-bottom:4px;">GRAVE CRAWLER</h1>
+        <h2 style="font-size:13px;letter-spacing:4px;color:#aaddaa;margin-bottom:12px;">ARISE. DEVOUR. GROW.</h2>
+        <div style="font-size:11px;color:#99aa99;margin-bottom:3px;letter-spacing:2px;">Arrow keys / WASD — Slither</div>
+        <div style="font-size:11px;color:#99aa99;margin-bottom:3px;">1 — 💥 Bone Burst &nbsp; 2 — 🟢 Slime Trail &nbsp; 3 — 🌑 Death Shroud</div>
+        <div style="font-size:10px;color:#556655;margin-bottom:14px;letter-spacing:1px;">Spells consume your body — do not cast when small!</div>
+        <div style="font-size:11px;color:#ffd700;margin-bottom:12px;letter-spacing:2px;">🏆 BEST: ${highScore}</div>
+        <button id="start-btn" style="font-size:17px;padding:12px 36px;letter-spacing:4px;margin-bottom:16px;">CRAWL FORTH</button>
+        <div style="width:280px;border-top:1px solid #2a2a2a;padding-top:12px;">
+          <div style="font-size:10px;letter-spacing:3px;color:#556;margin-bottom:8px;text-align:center;">— HALL OF THE DEAD —</div>
+          <div id="title-leaderboard" style="text-align:center;"></div>
+        </div>
       </div>
     </div>
   `;
@@ -708,6 +843,13 @@ function showTitleScreen() {
     ov.style.padding = "";
     startGame();
   });
+  // Async leaderboard load
+  const lbDiv = document.getElementById("title-leaderboard");
+  if(lbDiv) {
+    lbDiv.innerHTML = '<div style="color:#556;font-size:10px;letter-spacing:2px;">LOADING...</div>';
+    const rows = await fetchLeaderboard();
+    lbDiv.innerHTML = renderLeaderboard(rows);
+  }
 }
 
 function startGame() {
