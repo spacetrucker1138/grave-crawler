@@ -285,21 +285,24 @@ async function submitScore(initials, pts) {
 }
 
 function renderLeaderboard(rows) {
-  if(!rows || rows.length === 0) return '<div style="color:#444;font-size:11px;letter-spacing:2px;font-family:monospace;">NO SCORES YET — BE THE FIRST</div>';
-  return '<table style="border-collapse:collapse;width:100%;font-size:12px;letter-spacing:1px;font-family:monospace;">'
-    + '<tr><th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">RANK</th>'
-    + '<th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">NAME</th>'
-    + '<th style="color:#444;padding:2px 8px;text-align:right;font-weight:normal;letter-spacing:2px;">SCORE</th></tr>'
-    + rows.map((r,i) => {
-        const isTop = i === 0;
-        const col = isTop ? "#ffd700" : (i < 3 ? "#c8a84b" : "#777");
-        return `<tr>
-          <td style="color:${col};padding:3px 8px;">#${i+1}</td>
-          <td style="color:${col};padding:3px 8px;">${r.initials||"????"}</td>
-          <td style="color:${col};padding:2px 8px;text-align:right;">💀 ${r.score}</td>
-        </tr>`;
-      }).join("")
-    + "</table>";
+  if(!rows || rows.length === 0) {
+    return `<div style="color:#444;font-size:11px;letter-spacing:2px;font-family:monospace;">NO SCORES YET — BE THE FIRST</div>`;
+  }
+  return `<table style="border-collapse:collapse;width:100%;font-size:12px;letter-spacing:1px;font-family:monospace;">
+    <tr>
+      <th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">RANK</th>
+      <th style="color:#444;padding:2px 8px;text-align:left;font-weight:normal;letter-spacing:2px;">NAME</th>
+      <th style="color:#444;padding:2px 8px;text-align:right;font-weight:normal;letter-spacing:2px;">SCORE</th>
+    </tr>` +
+    rows.map((r,i) => {
+      const col = i === 0 ? "#ffd700" : (i < 3 ? "#c8a84b" : "#777");
+      return `<tr>
+        <td style="color:${col};padding:3px 8px;">#${i+1}</td>
+        <td style="color:${col};padding:3px 8px;">${r.initials||"????"}</td>
+        <td style="color:${col};padding:2px 8px;text-align:right;">💀 ${r.score}</td>
+      </tr>`;
+    }).join("") +
+    "</table>";
 }
 
 let pendingScore = 0; // score waiting for initials entry
