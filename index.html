@@ -94,10 +94,10 @@
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────
 const CELL  = 32;
-const COLS  = 25;   // 800px wide
-const ROWS  = 18;   // 576px tall (leaves 24px slack, grid-aligned)
-const W = COLS * CELL; // 800
-const H = ROWS * CELL; // 576
+const COLS  = 30;   // 960px wide
+const ROWS  = 20;   // 640px tall
+const W = COLS * CELL; // 960
+const H = ROWS * CELL; // 640
 document.getElementById("gc").width  = W;
 document.getElementById("gc").height = H;
 
@@ -433,7 +433,8 @@ function drawSnake() {
       ctx.globalAlpha = alpha;
       if(i===0) {
         // Head: rotate to face direction
-        const angle = Math.atan2(dir.row, dir.col);
+        // Sprite faces DOWN natively; subtract π/2 to rotate CCW 90° → faces RIGHT at angle=0
+        const angle = Math.atan2(dir.row, dir.col) - Math.PI/2;
         drawSnakeSprite("head", x, y, angle);
       } else if(i===len-1) {
         // Tail: rotate to face prev segment
@@ -447,14 +448,13 @@ function drawSnake() {
         const dx2=next.col-seg.col, dy2=next.row-seg.row;
         const straight = (dx1===-dx2) || (dy1===-dy2);
         if(straight) {
-          const angle = Math.atan2(dy1+dy2, dx1+dx2) + Math.PI/2;
-          // alternate for visual variety
-          const type = i%3===0 ? "body" : "body";
-          drawSnakeSprite(type, x, y, angle);
+          // Use head-side to tail-side travel angle; ribs need +π/2 to stay perpendicular to travel
+          const travelAngle = Math.atan2(prev.row - next.row, prev.col - next.col);
+          drawSnakeSprite("body", x, y, travelAngle + Math.PI/2);
         } else {
-          // Corner: rotate curve sprite
-          const angle = Math.atan2(dy1+dy2, dx1+dx2) + Math.PI/4;
-          drawSnakeSprite("curve", x, y, angle);
+          // Corner: use diagonal between the two incoming directions
+          const travelAngle = Math.atan2(prev.row - next.row, prev.col - next.col);
+          drawSnakeSprite("curve", x, y, travelAngle + Math.PI/4);
         }
       }
       ctx.restore();
