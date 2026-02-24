@@ -70,6 +70,7 @@
   <div id="hud">
     <span>💀 <span id="score-hud">0</span></span>
     <span>📏 <span id="length-hud">3</span></span>
+    <span>🏆 <span id="best-hud">0</span></span>
     <span id="spell-bar">
       <span class="spell-slot" id="slot-0">💥<span class="spell-label">BURST [1]</span></span>
       <span class="spell-slot" id="slot-1">⚡<span class="spell-label">RUSH [2]</span></span>
@@ -80,16 +81,7 @@
   <canvas id="gc" width="800" height="600"></canvas>
 </div>
 
-<div id="overlay">
-  <h1>GRAVE CRAWLER</h1>
-  <h2>ARISE. DEVOUR. GROW.</h2>
-  <p>Arrow keys / WASD — Slither</p>
-  <p>1 — 💥 Bone Burst (costs 3 segments — clears path ahead)</p>
-  <p>2 — 🟢 Slime Trail (costs 2 segments — leaves toxic slime, fades in 3s)</p>
-  <p>3 — 🌑 Death Shroud (costs 4 segments — brief invincibility)</p>
-  <p class="spell-hint">Spells consume your body — do not cast when small!</p>
-  <button id="start-btn">CRAWL FORTH</button>
-</div>
+<div id="overlay"></div>
 
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────
@@ -179,6 +171,7 @@ function drawPropSprite(type, x, y) {
 
 // ── GAME STATE ───────────────────────────────────────────────────────────
 let snake, dir, nextDir, score, gameOver, intervalId, spellFx, villagers, propList;
+let highScore = parseInt(localStorage.getItem("gc_high_score") || "0");
 let shroudTimer = 0, slimeActive = 0; // slimeActive counts down ticks while laying slime
 let slimeTiles = []; // [{col,row,life,maxLife}] — slime trail tiles
 let greenKnight = null;        // active knight NPC or null
@@ -445,6 +438,7 @@ function showEffect(msg, ms) {
 function updateHUD() {
   document.getElementById("score-hud").textContent  = score;
   document.getElementById("length-hud").textContent = snake.length;
+  document.getElementById("best-hud").textContent   = highScore;
   SPELLS.forEach((sp,i) => {
     const el = document.getElementById("slot-"+i);
     const ready = snake.length > sp.cost + 2;
@@ -645,17 +639,29 @@ const DEATHS = [
 function endGame(reason) {
   gameOver = true;
   clearInterval(intervalId);
+  // Save high score
+  if(score > highScore) {
+    highScore = score;
+    localStorage.setItem("gc_high_score", highScore);
+  }
   draw();
   const ov = document.getElementById("overlay");
+  const isNew = score >= highScore && score > 0;
   ov.innerHTML = `
     <div id="game-over-msg">THE CRAWLER FALLS</div>
     <div id="death-flavor">${reason}</div>
     <div id="score-big">💀 ${score}</div>
-    <p>Length reached: ${snake.length} segments</p>
-    <button id="start-btn" style="margin-top:32px">RISE AGAIN</button>
+    ${isNew ? '<div style="color:#ffd700;font-size:14px;letter-spacing:3px;margin-bottom:8px;">✦ NEW HIGH SCORE ✦</div>' : ''}
+    <div style="color:#888;font-size:13px;margin-bottom:20px;">BEST: ${highScore}</div>
+    <p style="margin-bottom:24px;">Length reached: ${snake.length} segments</p>
+    <div style="display:flex;gap:16px;justify-content:center;">
+      <button id="replay-btn">RISE AGAIN</button>
+      <button id="title-btn" style="background:#1a1a2e;border:2px solid #556;">◀ TITLE</button>
+    </div>
   `;
   ov.classList.remove("overlay-hidden");
-  document.getElementById("start-btn").addEventListener("click", startGame);
+  document.getElementById("replay-btn").addEventListener("click", startGame);
+  document.getElementById("title-btn").addEventListener("click", showTitleScreen);
 }
 
 // ── INPUT ─────────────────────────────────────────────────────────────── 
@@ -677,6 +683,32 @@ document.addEventListener("keydown", e => {
 });
 
 // ── START ─────────────────────────────────────────────────────────────── 
+function showTitleScreen() {
+  clearInterval(intervalId);
+  gameOver = true;
+  const ov = document.getElementById("overlay");
+  ov.innerHTML = `
+    <div style="position:relative;width:100%;height:100%;overflow:hidden;">
+      ${IMG.title ? '<img src="' + IMG.title.src + '" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0.55;">' : ''}
+      <div style="position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:0;">
+        <h1 style="font-size:clamp(32px,6vw,56px);letter-spacing:8px;text-shadow:0 0 32px #33ff66,0 0 8px #000;margin-bottom:6px;">GRAVE CRAWLER</h1>
+        <h2 style="font-size:14px;letter-spacing:4px;color:#aaddaa;margin-bottom:18px;">ARISE. DEVOUR. GROW.</h2>
+        <div style="font-size:12px;color:#99aa99;margin-bottom:4px;letter-spacing:2px;">Arrow keys / WASD — Slither</div>
+        <div style="font-size:12px;color:#99aa99;margin-bottom:4px;">1 — 💥 Bone Burst &nbsp; 2 — 🟢 Slime Trail &nbsp; 3 — 🌑 Death Shroud</div>
+        <div style="font-size:11px;color:#556655;margin-bottom:20px;letter-spacing:1px;">Spells consume your body — do not cast when small!</div>
+        <div style="font-size:12px;color:#ffd700;margin-bottom:24px;letter-spacing:2px;">🏆 BEST: ${highScore}</div>
+        <button id="start-btn" style="font-size:18px;padding:14px 40px;letter-spacing:4px;">CRAWL FORTH</button>
+      </div>
+    </div>
+  `;
+  ov.style.padding = "0";
+  ov.classList.remove("overlay-hidden");
+  document.getElementById("start-btn").addEventListener("click", () => {
+    ov.style.padding = "";
+    startGame();
+  });
+}
+
 function startGame() {
   document.getElementById("overlay").classList.add("overlay-hidden");
   initGame();
@@ -688,6 +720,7 @@ function startGame() {
 // ── BOOT ──────────────────────────────────────────────────────────────── 
 Promise.all([
   loadImg("bg",      "assets/bg.jpg"),
+  loadImg("title",   "assets/title.jpg"),
   loadImg("snake",   "assets/snake.png"),
   loadImg("villager","assets/villager.png"),
   loadImg("props",   "assets/props.png"),
@@ -715,11 +748,9 @@ Promise.all([
     return oc;
   }
   IMG.knight = killMagenta(IMG.knight);
-  initGame(); draw();
-  document.getElementById("start-btn").addEventListener("click", startGame);
+  showTitleScreen();
 }).catch(() => {
-  initGame(); draw();
-  document.getElementById("start-btn").addEventListener("click", startGame);
+  showTitleScreen();
 });
 </script>
 </body>
