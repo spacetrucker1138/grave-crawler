@@ -257,7 +257,7 @@ function tickVillagers() {
     // Check if snake head landed on knight (every tick, not just move ticks)
     if(k.col===snake[0].col && k.row===snake[0].row) {
       score += 50;
-      spellFx.push({type:"eat", col:k.col, row:k.row, life:10});
+      spellFx.push({type:"eat", col:k.col, row:k.row, life:10, pts:50});
       greenKnight = null;
       updateHUD();
     } else {
@@ -368,7 +368,7 @@ function tick() {
         spawnGreenKnight();
         applesSinceKnight = 0;
       }
-      spellFx.push({type:"eat", col:v.col, row:v.row, life:10});
+      spellFx.push({type:"eat", col:v.col, row:v.row, life:10, pts:10});
       // Respawn
       villagers[i] = makeVillager(propList.avoid, new Set(snake.map(s=>`${s.col},${s.row}`)));
       break;
@@ -571,7 +571,7 @@ function draw() {
       ctx.font=`bold ${13+(10-e.life)}px 'Courier New'`;
       ctx.textAlign="center";
       ctx.shadowColor="#c8a84b"; ctx.shadowBlur=8;
-      ctx.fillText("+10", x+CELL/2, y - (10-e.life)*2);
+      ctx.fillText("+"+(e.pts||10), x+CELL/2, y - (10-e.life)*2);
       ctx.restore();
     }
   });
