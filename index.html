@@ -74,6 +74,23 @@
     #death-flavor { font-size:13px; color:#666; margin:6px 0 20px; letter-spacing:2px; }
     .overlay-hidden { display:none !important; }
   </style>
+
+<style id="mob-ctrl-css">
+/* ─── MOBILE CONTROLS ─────────────────────────────────── */
+#mob-overlay{display:none;position:fixed;bottom:0;left:0;right:0;height:44vw;max-height:210px;z-index:9999;pointer-events:none;user-select:none;}
+@media(pointer:coarse)and(orientation:landscape){#mob-overlay{display:block;}}
+#mob-dpad{position:absolute;right:10px;bottom:10px;width:140px;height:140px;pointer-events:all;}
+.mob-dpad-btn{position:absolute;width:44px;height:44px;background:rgba(200,168,75,0.15);border:2px solid rgba(200,168,75,0.45);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;color:rgba(200,168,75,0.9);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.mob-dpad-btn:active{background:rgba(200,168,75,0.35);}
+#mob-up{left:48px;top:0;}
+#mob-dn{left:48px;bottom:0;}
+#mob-lt{left:0;top:48px;}
+#mob-rt{right:0;top:48px;}
+#mob-ctr{left:48px;top:48px;background:rgba(200,168,75,0.06);font-size:12px;color:rgba(200,168,75,0.5);}
+#mob-btns{position:absolute;left:10px;bottom:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;pointer-events:all;}
+.mob-btn{min-width:80px;height:40px;padding:0 12px;background:rgba(200,168,75,0.12);border:2px solid rgba(200,168,75,0.4);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;color:rgba(200,168,75,0.9);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;font-family:'Courier New',monospace;letter-spacing:1px;}
+.mob-btn:active{background:rgba(200,168,75,0.3);}
+</style>
 </head>
 <body>
 <div id="wrapper">
@@ -1035,6 +1052,47 @@ Promise.all([
 }).catch(() => {
   showTitleScreen();
 });
+</script>
+<div id="mob-overlay">
+<div id="mob-dpad">
+  <div class="mob-dpad-btn" id="mob-up">▲</div>
+  <div class="mob-dpad-btn" id="mob-lt">◀</div>
+  <div class="mob-dpad-btn" id="mob-ctr">·</div>
+  <div class="mob-dpad-btn" id="mob-rt">▶</div>
+  <div class="mob-dpad-btn" id="mob-dn">▼</div>
+</div>
+<div id="mob-btns">
+  <div class="mob-btn" id="mob-spell1">💥 BURST</div>
+  <div class="mob-btn" id="mob-spell2">🟢 SLIME</div>
+  <div class="mob-btn" id="mob-spell3">🌑 SHROUD</div>
+</div>
+</div><script id="mob-ctrl-js">
+(function(){
+  function mkEvt(t,code,key){return new KeyboardEvent(t,{key:key,code:code,bubbles:true,cancelable:true});}
+  var held={};
+  function press(code,key){if(held[code])return;held[code]=1;document.dispatchEvent(mkEvt('keydown',code,key));}
+  function release(code,key){if(!held[code])return;held[code]=0;document.dispatchEvent(mkEvt('keyup',code,key));}
+  function bindDir(id,code,key){
+    var el=document.getElementById(id);if(!el)return;
+    el.addEventListener('touchstart',function(e){e.preventDefault();press(code,key);},{passive:false});
+    el.addEventListener('touchend',function(e){e.preventDefault();release(code,key);},{passive:false});
+    el.addEventListener('touchcancel',function(e){release(code,key);},{passive:false});
+  }
+  function bindTap(id,key){
+    var el=document.getElementById(id);if(!el)return;
+    el.addEventListener('touchstart',function(e){e.preventDefault();
+      document.dispatchEvent(mkEvt('keydown','',key));
+      setTimeout(function(){document.dispatchEvent(mkEvt('keyup','',key));},80);
+    },{passive:false});
+  }
+  bindDir('mob-up','ArrowUp','ArrowUp');
+  bindDir('mob-dn','ArrowDown','ArrowDown');
+  bindDir('mob-lt','ArrowLeft','ArrowLeft');
+  bindDir('mob-rt','ArrowRight','ArrowRight');
+  bindTap('mob-spell1','1');
+  bindTap('mob-spell2','2');
+  bindTap('mob-spell3','3');
+})();
 </script>
 </body>
 </html>
